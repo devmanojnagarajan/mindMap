@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(npm start)",
+      "Bash(npm install)",
+      "Bash(npx http-server:*)",
+      "Bash(node server.js)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

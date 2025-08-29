@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coggle Clone - Mind Mapping Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://unpkg.com/notie/dist/notie.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+    <script src="https://unpkg.com/tippy.js@6"></script>
+    <script src="https://unpkg.com/notie/dist/notie.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <header class="toolbar">
+            <h1>Mind Map</h1>
+            <div class="controls">
+                <div class="control-group">
+                    <button id="save-map" data-tippy-content="Save Map"><i class="ri-save-line"></i></button>
+                    <button id="load-map" data-tippy-content="Load Map"><i class="ri-folder-open-line"></i></button>
+                </div>
+                <div class="control-group">
+                    <button id="login-btn" data-tippy-content="Login with Google"><i class="ri-google-fill"></i></button>
+                </div>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div id="canvas-container">
+                <svg id="canvas" width="100%" height="100%">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                                refX="10" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#888" />
+                        </marker>
+                        <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#333" stroke-width="0.2" opacity="0.2"/>
+                        </pattern>
+                    </defs>
+                    <rect id="grid-background" x="-10000" y="-10000" width="20000" height="20000" fill="url(#grid)" />
+                    <rect id="selection-rectangle" x="0" y="0" width="0" height="0" fill="rgba(33, 150, 243, 0.2)" stroke="#2196F3" stroke-width="1" stroke-dasharray="5,5" style="display: none;" />
+                    <path id="drag-connection" d="" stroke="#3498db" stroke-width="3" fill="none" stroke-dasharray="8,4" marker-end="url(#arrowhead)" style="display: none;" />
+                    <g id="add-node-indicator" style="display: none; cursor: pointer;">
+                        <circle cx="0" cy="0" r="25" fill="rgba(52, 152, 219, 0.3)" stroke="#3498db" stroke-width="2" stroke-dasharray="5,3" pointer-events="all"/>
+                        <text x="0" y="0" text-anchor="middle" dominant-baseline="central" fill="#3498db" font-size="12" font-family="var(--font-family)" pointer-events="none">Click to add</text>
+                    </g>
+                </svg>
+            </div>
+            
+            <div id="bottom-toolbar">
+                <div class="controls">
+                    <div class="control-group">
+                        <button id="add-node" data-tippy-content="Add Node"><i class="ri-add-fill"></i></button>
+                        <button id="connect-mode" data-tippy-content="Connect Mode"><i class="ri-drag-move-2-fill"></i></button>
+                    </div>
+                    <div class="control-group">
+                        <button id="zoom-in" data-tippy-content="Zoom In"><i class="ri-zoom-in-line"></i></button>
+                        <button id="zoom-out" data-tippy-content="Zoom Out"><i class="ri-zoom-out-line"></i></button>
+                        <button id="zoom-reset" data-tippy-content="Reset Zoom"><i class="ri-zoom-in-fill"></i></button>
+                    </div>
+                    <div class="control-group">
+                        <button id="delete-map" data-tippy-content="Delete Map"><i class="ri-delete-bin-line"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="minimap-container">
+                <div id="minimap-header">Navigation</div>
+                <svg id="minimap" width="200" height="150">
+                    <rect id="minimap-background" width="100%" height="100%" fill="#1a1a1a" stroke="#444" stroke-width="1"/>
+                    <rect id="viewport-indicator" width="20" height="20" fill="none" stroke="#4CAF50" stroke-width="2" opacity="0.7"/>
+                </svg>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+    <script src="auth.js"></script>
+</body>
+</html>
