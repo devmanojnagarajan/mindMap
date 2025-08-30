@@ -8,7 +8,7 @@ class MindMap {
         this.selectedNodes = new Set();
         this.isConnectMode = false;
         this.connectionStart = null;
-        this.connectionControlPoints = new Map(); // Store control points for each connection
+        this.connectionControlPoints = new Map(); // Store custom control points for connections
         this.clipboard = [];
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
@@ -42,6 +42,32 @@ class MindMap {
     init() {
         this.updateCanvasSize();
         this.updateViewBox();
+        this.initializeLayers();
+    }
+
+    initializeLayers() {
+        // Create separate layers for proper z-ordering
+        const defs = this.canvas.querySelector('defs');
+        
+        // Create connection layer (should be behind nodes)
+        this.connectionLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.connectionLayer.setAttribute('id', 'connection-layer');
+        this.canvas.appendChild(this.connectionLayer);
+        
+        // Create node layer (should be above connections)
+        this.nodeLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.nodeLayer.setAttribute('id', 'node-layer');
+        this.canvas.appendChild(this.nodeLayer);
+        
+        // Create control point layer (should be above everything)
+        this.controlLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        this.controlLayer.setAttribute('id', 'control-layer');
+        this.canvas.appendChild(this.controlLayer);
+        
+        console.log('Layers initialized: connection, node, control');
+        console.log('Connection layer:', this.connectionLayer);
+        console.log('Node layer:', this.nodeLayer);
+        console.log('Control layer:', this.controlLayer);
     }
 
     setupEventListeners() {
@@ -75,6 +101,7 @@ class MindMap {
                 this.clearSelection();
                 this.isConnectMode = false;
                 this.updateConnectModeButton();
+                this.hideAllControlPoints();
             } else if (e.key === ' ') {
                 e.preventDefault();
                 this.isSpacePressed = true;
@@ -84,6 +111,14 @@ class MindMap {
             } else if (e.ctrlKey && e.key === 'v') {
                 e.preventDefault();
                 this.pasteNodes();
+            } else if (e.key === 't' || e.key === 'T') {
+                // TEMPORARY: Press 'T' to create a test control point
+                console.log('Creating test control point with T key');
+                this.createTestControlPoint();
+                
+                // TEMPORARY: Press 'C' to test connection clicking
+                console.log('Creating test connection with C key');
+                this.createTestConnection();
             }
         });
         
@@ -146,6 +181,7 @@ class MindMap {
         this.nodes.push(node);
         this.renderNode(node);
         
+        
         if (this.connections.length > 0) {
             this.renderConnections();
         }
@@ -172,7 +208,7 @@ class MindMap {
 
         group.appendChild(circle);
         group.appendChild(text);
-        this.canvas.appendChild(group);
+        this.nodeLayer.appendChild(group);
 
         group.addEventListener('mousedown', (e) => {
             e.stopPropagation();
@@ -322,43 +358,110 @@ class MindMap {
                     const endX = toNode.x - unitX * toNode.radius;
                     const endY = toNode.y - unitY * toNode.radius;
                     
+                    // Create Coggle-style Bézier curve with proper control points
+                    const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode, connection.id);
+                    
                     // Create curved path for more elegant connections
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     path.setAttribute('class', 'connection-line');
                     path.setAttribute('data-connection-id', connection.id);
-                    
-                    // Create Coggle-style Bézier curve with proper control points
-                    const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode, connection.id);
                     path.setAttribute('d', pathData);
                     
-                    // Add click handler for control points and deletion
-                    path.addEventListener('click', (e) => {
+                    // Check if this connection is selected (has visible control points)
+                    const controlData = this.connectionControlPoints.get(connection.id);
+                    const isSelected = controlData && controlData.visible;
+                    
+                    // Set up visual appearance based on selection state
+                    if (isSelected) {
+                        path.setAttribute('stroke', '#38BDF8'); // Bright blue for selected
+                        path.setAttribute('stroke-width', '3');
+                        path.style.filter = 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.5))';
+                    } else {
+                        path.setAttribute('stroke', '#6B7280'); // Default gray
+                        path.setAttribute('stroke-width', '2');
+                        path.style.filter = 'none';
+                    }
+                    
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('marker-end', 'url(#arrowhead)');
+                    
+                    // Create invisible thicker overlay for easier clicking
+                    const clickOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    clickOverlay.setAttribute('d', pathData);
+                    clickOverlay.setAttribute('stroke', 'transparent');
+                    clickOverlay.setAttribute('stroke-width', '15'); // Thicker for easier clicking
+                    clickOverlay.setAttribute('fill', 'none');
+                    clickOverlay.style.pointerEvents = 'all';
+                    clickOverlay.style.cursor = 'pointer';
+                    
+                    // Add click handler for control points and deletion to the overlay
+                    clickOverlay.addEventListener('click', (e) => {
+                        console.log('Connection line clicked!', {connectionId: connection.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey});
+                        
                         if (e.ctrlKey || e.altKey) {
                             e.stopPropagation();
                             this.deleteConnection(connection.id);
                         } else if (e.shiftKey) {
                             e.stopPropagation();
                             this.toggleConnectionControlPoints(connection.id);
+                        } else {
+                            // Regular click - add/remove control point
+                            e.stopPropagation();
+                            console.log('Calling handleCurveClick...');
+                            this.handleCurveClick(e, connection.id, path);
                         }
                     });
                     
-                    // Add hover effect with tooltip
-                    path.addEventListener('mouseenter', (e) => {
-                        path.style.strokeWidth = '4';
+                    // TEMPORARY: Add a simple test circle to make sure we can create SVG elements
+                    if (connection.id.includes('test')) {
+                        const testCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                        testCircle.setAttribute('cx', startX);
+                        testCircle.setAttribute('cy', startY);
+                        testCircle.setAttribute('r', '10');
+                        testCircle.setAttribute('fill', 'red');
+                        testCircle.setAttribute('class', 'test-circle');
+                        this.connectionLayer.appendChild(testCircle);
+                        console.log('Test circle added at connection start');
+                    }
+                    
+                    // Add hover effect with tooltip on the overlay
+                    clickOverlay.addEventListener('mouseenter', (e) => {
+                        if (isSelected) {
+                            path.style.strokeWidth = '4';
+                            path.style.stroke = '#0EA5E9'; // Darker blue on hover for selected
+                        } else {
+                            path.style.strokeWidth = '3';
+                            path.style.stroke = '#9CA3AF'; // Lighter gray on hover for unselected
+                        }
                     });
                     
-                    path.addEventListener('mouseleave', (e) => {
-                        path.style.strokeWidth = '2';
+                    clickOverlay.addEventListener('mouseleave', (e) => {
+                        if (isSelected) {
+                            path.style.strokeWidth = '3';
+                            path.style.stroke = '#38BDF8'; // Back to selected blue
+                        } else {
+                            path.style.strokeWidth = '2';
+                            path.style.stroke = '#6B7280'; // Back to default gray
+                        }
                     });
                     
-                    this.canvas.insertBefore(path, this.canvas.firstChild);
+                    // Add both elements to connection layer (behind nodes)
+                    this.connectionLayer.appendChild(path);
+                    this.connectionLayer.appendChild(clickOverlay);
+                    console.log('Connection line added to canvas with clickable styling');
                 }
             }
         });
     }
 
     onMouseDown(e) {
-        if (!e.target.closest('.node')) {
+        // Check if clicking on empty canvas area (not on nodes or connections)
+        if (!e.target.closest('.node') && !e.target.closest('.connection-line') && 
+            !e.target.closest('.control-point-handle') && e.target.tagName.toLowerCase() !== 'path') {
+            
+            // Deselect all connections when clicking on empty space
+            this.deselectAllConnections();
+            
             const rect = this.canvas.getBoundingClientRect();
             const canvasX = e.clientX - rect.left;
             const canvasY = e.clientY - rect.top;
@@ -415,6 +518,9 @@ class MindMap {
                     }
                 });
                 
+                // Update control points for moved nodes
+                this.updateControlPointsForMovedNodes();
+                
                 this.dragStart.x = mouseX;
                 this.dragStart.y = mouseY;
             } else if (this.selectedNode) {
@@ -426,6 +532,9 @@ class MindMap {
                 if (nodeElement) {
                     nodeElement.setAttribute('transform', `translate(${this.selectedNode.x}, ${this.selectedNode.y})`);
                 }
+                
+                // Update control points for moved nodes
+                this.updateControlPointsForMovedNodes();
             }
             
             this.renderConnections();
@@ -660,6 +769,7 @@ class MindMap {
                 this.connections = [];
                 this.selectedNode = null;
                 this.canvas.innerHTML = this.canvas.querySelector('defs').outerHTML;
+                this.initializeLayers();
                 this.addRootNode();
                 notie.alert({ type: 'success', text: 'Map deleted successfully!' });
             }
@@ -672,10 +782,12 @@ class MindMap {
         this.selectedNode = null;
         this.selectedNodes.clear();
         this.canvas.innerHTML = this.canvas.querySelector('defs').outerHTML;
+        this.initializeLayers();
     }
 
     renderAll() {
         this.canvas.innerHTML = this.canvas.querySelector('defs').outerHTML;
+        this.initializeLayers();
         this.nodes.forEach(node => this.renderNode(node));
         this.renderConnections();
         this.updateMinimap();
@@ -876,10 +988,6 @@ class MindMap {
                 from: fromNode.id,
                 to: toNode.id
             };
-            
-            // Initialize control points for this connection
-            this.initializeControlPoints(connection, fromNode, toNode);
-            
             this.connections.push(connection);
             this.renderConnections();
         }
@@ -964,51 +1072,655 @@ class MindMap {
 
     deleteConnection(connectionId) {
         this.connections = this.connections.filter(c => c.id !== connectionId);
+        // Remove control points for this connection
+        this.connectionControlPoints.delete(connectionId);
+        // Remove any visible control point handles
+        document.querySelectorAll(`[data-connection-id="${connectionId}"]`).forEach(handle => handle.remove());
         this.renderConnections();
     }
 
-    initializeControlPoints(connection, fromNode, toNode) {
+    handleCurveClick(event, connectionId, pathElement) {
+        // Get click position on the curve
+        const rect = this.canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+        
+        // Convert to world coordinates
+        const worldX = this.viewBox.x + (clickX / rect.width) * this.viewBox.width;
+        const worldY = this.viewBox.y + (clickY / rect.height) * this.viewBox.height;
+        
+        console.log('Curve clicked at:', {worldX, worldY, connectionId});
+        
+        // Get connection endpoints to avoid placing control points too close to them
+        const connection = this.connections.find(c => c.id === connectionId);
+        if (!connection) {
+            console.error('Connection not found:', connectionId);
+            return;
+        }
+        
+        const fromNode = this.nodes.find(n => n.id === connection.from);
+        const toNode = this.nodes.find(n => n.id === connection.to);
+        
+        if (!fromNode || !toNode) {
+            console.error('Nodes not found for connection');
+            return;
+        }
+        
+        // Calculate actual connection endpoints (on node circumference)
         const dx = toNode.x - fromNode.x;
         const dy = toNode.y - fromNode.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Calculate default control points positions
-        const controlDistance = Math.min(distance * 0.4, 150);
+        if (distance > 0) {
+            const unitX = dx / distance;
+            const unitY = dy / distance;
+            const startX = fromNode.x + unitX * fromNode.radius;
+            const startY = fromNode.y + unitY * fromNode.radius;
+            const endX = toNode.x - unitX * toNode.radius;
+            const endY = toNode.y - unitY * toNode.radius;
+            
+            // Check if click is too close to endpoints
+            const startDistance = Math.sqrt(Math.pow(worldX - startX, 2) + Math.pow(worldY - startY, 2));
+            const endDistance = Math.sqrt(Math.pow(worldX - endX, 2) + Math.pow(worldY - endY, 2));
+            
+            if (startDistance < 30 || endDistance < 30) {
+                console.log('Click too close to connection endpoints, ignoring');
+                return;
+            }
+        }
+        
+        // Initialize control points if they don't exist
+        let controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData) {
+            console.log('Initializing control points for connection:', connectionId);
+            this.initializeControlPointsForConnection(connectionId);
+            controlData = this.connectionControlPoints.get(connectionId);
+        }
+        
+        if (!controlData) {
+            console.error('Failed to initialize control points');
+            return;
+        }
+        
+        // Check if this connection is already selected (control points visible)
+        const wasAlreadySelected = controlData.visible;
+        
+        // Check if clicking near existing control point to remove it (increased detection area)
+        let clickedPointIndex = -1;
+        for (let i = 0; i < controlData.points.length; i++) {
+            const cp = controlData.points[i];
+            const distance = Math.sqrt(
+                Math.pow(worldX - cp.x, 2) + Math.pow(worldY - cp.y, 2)
+            );
+            if (distance < 25) { // Increased from 15 to 25 for easier deletion
+                clickedPointIndex = i;
+                break;
+            }
+        }
+        
+        if (!wasAlreadySelected) {
+            // First click - just select the connection and show control points
+            console.log('First click - selecting connection and showing control points');
+            controlData.visible = true;
+            
+            // Hide all other control points first
+            this.hideAllControlPoints();
+            this.showControlPoints(connectionId);
+            
+            // Visual feedback for selection
+            this.showTemporaryFeedback('Connection selected', worldX, worldY, '#38BDF8');
+            
+        } else if (clickedPointIndex >= 0) {
+            // Already selected + clicking on control point = delete it
+            console.log('Removing control point at index:', clickedPointIndex);
+            
+            // Visual feedback for deletion
+            this.showTemporaryFeedback('Control point deleted', worldX, worldY, '#ff4444');
+            
+            // Remove control point
+            this.removeControlPoint(connectionId, clickedPointIndex);
+            
+        } else {
+            // Already selected + clicking on empty area = add control point
+            console.log('Adding new control point at:', {worldX, worldY});
+            
+            // Visual feedback for addition
+            this.showTemporaryFeedback('Control point added', worldX, worldY, '#44ff44');
+            
+            // Add new control point at click location
+            this.addControlPoint(connectionId, worldX, worldY);
+            
+            // Show control points after addition
+            this.hideAllControlPoints();
+            this.showControlPoints(connectionId);
+        }
+    }
+
+    initializeControlPointsForConnection(connectionId) {
+        console.log('Initializing control points for connection:', connectionId);
+        
+        // Initialize control points for a connection that doesn't have them yet
+        const connection = this.connections.find(c => c.id === connectionId);
+        if (!connection) {
+            console.error('Connection not found:', connectionId);
+            return;
+        }
+        
+        const fromNode = this.nodes.find(n => n.id === connection.from);
+        const toNode = this.nodes.find(n => n.id === connection.to);
+        
+        if (!fromNode || !toNode) {
+            console.error('Nodes not found for connection:', connection);
+            return;
+        }
+        
+        // Calculate default control points
+        const dx = toNode.x - fromNode.x;
+        const dy = toNode.y - fromNode.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
         const angle = Math.atan2(dy, dx);
+        const perpAngle = angle + Math.PI / 2;
+        const curvature = Math.min(distance * 0.3, 60);
         
-        // Three control points for cubic Bézier curve
-        const cp1X = fromNode.x + Math.cos(angle) * (controlDistance * 0.8);
-        const cp1Y = fromNode.y + Math.sin(angle) * (controlDistance * 0.8);
+        const unitX = dx / distance;
+        const unitY = dy / distance;
+        const startX = fromNode.x + unitX * fromNode.radius;
+        const startY = fromNode.y + unitY * fromNode.radius;
         
-        const midX = (fromNode.x + toNode.x) / 2;
-        const midY = (fromNode.y + toNode.y) / 2;
-        const cp2X = midX + Math.cos(angle + Math.PI / 2) * (controlDistance * 0.3);
-        const cp2Y = midY + Math.sin(angle + Math.PI / 2) * (controlDistance * 0.3);
+        const cp1X = startX + Math.cos(angle) * (distance * 0.33) + Math.cos(perpAngle) * curvature;
+        const cp1Y = startY + Math.sin(angle) * (distance * 0.33) + Math.sin(perpAngle) * curvature;
+        const cp2X = startX + Math.cos(angle) * (distance * 0.67) + Math.cos(perpAngle) * curvature;
+        const cp2Y = startY + Math.sin(angle) * (distance * 0.67) + Math.sin(perpAngle) * curvature;
         
-        const cp3X = toNode.x - Math.cos(angle) * (controlDistance * 0.8);
-        const cp3Y = toNode.y - Math.sin(angle) * (controlDistance * 0.8);
-        
-        this.connectionControlPoints.set(connection.id, {
-            cp1: { x: cp1X, y: cp1Y },
-            cp2: { x: cp2X, y: cp2Y },
-            cp3: { x: cp3X, y: cp3Y },
+        const controlData = {
+            points: [
+                { id: 'cp1', x: cp1X, y: cp1Y },
+                { id: 'cp2', x: cp2X, y: cp2Y }
+            ],
             visible: false
+        };
+        
+        this.connectionControlPoints.set(connectionId, controlData);
+        console.log('Control points initialized:', controlData);
+    }
+
+    addControlPoint(connectionId, x, y) {
+        const controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData) {
+            console.error('No control data found for connection:', connectionId);
+            return;
+        }
+        
+        // Generate unique ID for new control point
+        const newId = `cp${controlData.points.length + 1}_${Date.now()}`;
+        
+        // Add new control point
+        controlData.points.push({ id: newId, x: x, y: y });
+        controlData.visible = true; // Ensure they're visible
+        
+        console.log(`Added control point. Total: ${controlData.points.length}`, controlData.points);
+        this.updateCurveTypeInfo(connectionId, controlData.points.length);
+        
+        // Re-render the connection with updated control points
+        this.renderConnections();
+    }
+
+    removeControlPoint(connectionId, pointIndex) {
+        const controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData || pointIndex < 0 || pointIndex >= controlData.points.length) return;
+        
+        // Remove the control point
+        controlData.points.splice(pointIndex, 1);
+        
+        // Re-render the connection with updated control points
+        this.renderConnections();
+        
+        // If control points are visible, update the display
+        if (controlData.visible) {
+            this.showControlPoints(connectionId);
+        }
+        
+        console.log(`Removed control point. Total: ${controlData.points.length}`);
+        this.updateCurveTypeInfo(connectionId, controlData.points.length);
+    }
+
+    updateCurveTypeInfo(connectionId, numPoints) {
+        let curveType;
+        if (numPoints === 0) {
+            curveType = 'Straight Line';
+        } else if (numPoints === 1) {
+            curveType = 'Quadratic Bézier (2nd degree)';
+        } else if (numPoints === 2) {
+            curveType = 'Cubic Bézier (3rd degree)';
+        } else {
+            curveType = `Complex Curve (${numPoints} control points)`;
+        }
+        
+        console.log(`Connection ${connectionId}: ${curveType}`);
+    }
+
+    toggleConnectionControlPoints(connectionId) {
+        if (!this.connectionControlPoints.has(connectionId)) {
+            this.initializeControlPointsForConnection(connectionId);
+        }
+        
+        const controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData) return;
+        
+        controlData.visible = !controlData.visible;
+        
+        // Hide all other control points first
+        this.hideAllControlPoints();
+        
+        if (controlData.visible) {
+            this.showControlPoints(connectionId);
+        }
+    }
+
+    hideAllControlPoints() {
+        // Set all control points to invisible
+        this.connectionControlPoints.forEach(controlData => {
+            controlData.visible = false;
+        });
+        // Remove all control point handles from DOM
+        document.querySelectorAll('.control-point-handle').forEach(handle => handle.remove());
+    }
+
+    deselectAllConnections() {
+        console.log('Deselecting all connections');
+        this.hideAllControlPoints();
+        // Re-render connections to update their visual state
+        this.renderConnections();
+    }
+
+    showControlPoints(connectionId) {
+        const controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData) {
+            console.error('No control data found for showing points:', connectionId);
+            return;
+        }
+        
+        console.log('Showing control points for connection:', connectionId, controlData.points);
+        
+        // Remove any existing handles for this connection first
+        document.querySelectorAll(`[data-connection-id="${connectionId}"]`).forEach(handle => {
+            if (handle.classList.contains('control-point-handle')) {
+                handle.remove();
+            }
+        });
+        
+        // Create draggable handles for each control point
+        controlData.points.forEach((point, index) => {
+            console.log(`Creating handle for point ${index + 1}:`, point);
+            this.createControlPointHandle(
+                connectionId, 
+                point.id, 
+                point.x, 
+                point.y, 
+                (index + 1).toString()
+            );
         });
     }
 
-    createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode, connectionId = null) {
-        // If we have control points for this connection, use them
-        if (connectionId && this.connectionControlPoints.has(connectionId)) {
-            const controlPoints = this.connectionControlPoints.get(connectionId);
-            const cp1 = controlPoints.cp1;
-            const cp2 = controlPoints.cp2;
-            const cp3 = controlPoints.cp3;
-            
-            // Use cubic Bézier with three control points
-            return `M ${startX} ${startY} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${cp3.x} ${cp3.y} ${endX} ${endY}`;
+    createControlPointHandle(connectionId, pointId, x, y, label) {
+        console.log(`Creating control point handle at (${x}, ${y}) with label ${label}`);
+        
+        const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        handle.setAttribute('class', 'control-point-handle');
+        handle.setAttribute('data-connection-id', connectionId);
+        handle.setAttribute('data-point-id', pointId);
+        handle.setAttribute('transform', `translate(${x}, ${y})`);
+        
+        // Control point circle - make it larger and more visible
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', '10'); // Increased from 8 for better interaction
+        circle.setAttribute('fill', '#ff6b35');
+        circle.setAttribute('stroke', '#fff');
+        circle.setAttribute('stroke-width', '3');
+        circle.setAttribute('class', 'control-point-circle');
+        
+        // Add hover effects
+        circle.style.transition = 'all 0.2s ease';
+        circle.style.cursor = 'move';
+        
+        // Label text
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '0');
+        text.setAttribute('y', '4'); // Adjusted for larger circle
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', 'white');
+        text.setAttribute('font-size', '10'); // Increased from 8
+        text.setAttribute('font-weight', 'bold');
+        text.textContent = label;
+        
+        handle.appendChild(circle);
+        handle.appendChild(text);
+        
+        // Add hover effects to the handle group
+        handle.addEventListener('mouseenter', () => {
+            circle.setAttribute('r', '12');
+            circle.setAttribute('fill', '#ff8c00');
+            circle.style.filter = 'drop-shadow(0 0 8px rgba(255, 107, 53, 0.6))';
+        });
+        
+        handle.addEventListener('mouseleave', () => {
+            circle.setAttribute('r', '10');
+            circle.setAttribute('fill', '#ff6b35');
+            circle.style.filter = 'none';
+        });
+        
+        // Add to control layer (above everything else)
+        this.controlLayer.appendChild(handle);
+        
+        console.log('Control point handle created and added to canvas');
+        
+        // Add drag functionality
+        this.addControlPointDragBehavior(handle, connectionId, pointId);
+        
+        // TEMPORARY: Also add the handle to a global array for debugging
+        if (!window.debugControlHandles) window.debugControlHandles = [];
+        window.debugControlHandles.push(handle);
+        console.log('Total control handles created:', window.debugControlHandles.length);
+    }
+    
+    // TEMPORARY: Add a simple function to test control point creation
+    createTestControlPoint(x = 500, y = 300) {
+        console.log('Creating test control point at', x, y);
+        
+        const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        handle.setAttribute('class', 'test-control-point');
+        handle.setAttribute('transform', `translate(${x}, ${y})`);
+        
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', '12');
+        circle.setAttribute('fill', 'lime');
+        circle.setAttribute('stroke', 'black');
+        circle.setAttribute('stroke-width', '2');
+        
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '0');
+        text.setAttribute('y', '4');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', 'black');
+        text.setAttribute('font-size', '10');
+        text.setAttribute('font-weight', 'bold');
+        text.textContent = 'TEST';
+        
+        handle.appendChild(circle);
+        handle.appendChild(text);
+        this.controlLayer.appendChild(handle);
+        
+        console.log('Test control point created and should be visible');
+        return handle;
+    }
+
+    // TEMPORARY: Test function to create a connection for testing clicks
+    createTestConnection() {
+        console.log('Creating test connection for click testing');
+        
+        // Create two test nodes if they don't exist
+        let node1 = this.nodes.find(n => n.text === 'Test1');
+        let node2 = this.nodes.find(n => n.text === 'Test2');
+        
+        if (!node1) {
+            node1 = {
+                id: 'test-node-1',
+                x: 300,
+                y: 200,
+                text: 'Test1',
+                radius: 50
+            };
+            this.nodes.push(node1);
+            this.renderNode(node1);
         }
         
-        // Fallback to original algorithm for connections without control points
+        if (!node2) {
+            node2 = {
+                id: 'test-node-2', 
+                x: 600,
+                y: 300,
+                text: 'Test2',
+                radius: 50
+            };
+            this.nodes.push(node2);
+            this.renderNode(node2);
+        }
+        
+        // Create test connection
+        const connection = {
+            id: 'test-connection-1',
+            from: node1.id,
+            to: node2.id
+        };
+        
+        this.connections.push(connection);
+        this.renderConnections();
+        
+        console.log('Test connection created between Test1 and Test2');
+        console.log('Try clicking on the connection line!');
+    }
+
+    addControlPointDragBehavior(handle, connectionId, pointId) {
+        let isDragging = false;
+        let dragStartPos = { x: 0, y: 0 };
+        let animationFrameId = null;
+        let pendingUpdate = false;
+        
+        const updateCurve = () => {
+            if (pendingUpdate) {
+                this.renderConnections();
+                pendingUpdate = false;
+            }
+            animationFrameId = null;
+        };
+        
+        const requestCurveUpdate = () => {
+            if (!animationFrameId) {
+                pendingUpdate = true;
+                animationFrameId = requestAnimationFrame(updateCurve);
+            }
+        };
+        
+        handle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            isDragging = true;
+            
+            // Store drag start position for smooth interaction
+            dragStartPos.x = e.clientX;
+            dragStartPos.y = e.clientY;
+            
+            handle.style.cursor = 'grabbing';
+            
+            // Enhanced visual feedback during drag
+            const circle = handle.querySelector('.control-point-circle');
+            if (circle) {
+                circle.setAttribute('r', '15');
+                circle.style.filter = 'drop-shadow(0 0 15px rgba(255, 107, 53, 1))';
+                circle.setAttribute('fill', '#ff8c00');
+            }
+            
+            // Add dragging class for additional CSS effects
+            handle.classList.add('dragging');
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            e.preventDefault();
+            
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // Convert to world coordinates
+            const worldX = this.viewBox.x + (mouseX / rect.width) * this.viewBox.width;
+            const worldY = this.viewBox.y + (mouseY / rect.height) * this.viewBox.height;
+            
+            // Update control point position
+            const controlData = this.connectionControlPoints.get(connectionId);
+            const point = controlData.points.find(p => p.id === pointId);
+            if (point) {
+                point.x = worldX;
+                point.y = worldY;
+                
+                // Update handle position immediately for ultra-smooth interaction
+                handle.setAttribute('transform', `translate(${worldX}, ${worldY})`);
+                
+                // Request curve update using requestAnimationFrame for smooth performance
+                requestCurveUpdate();
+            }
+        });
+        
+        document.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                handle.style.cursor = 'move';
+                
+                // Reset visual feedback with smooth transition
+                const circle = handle.querySelector('.control-point-circle');
+                if (circle) {
+                    circle.style.transition = 'all 0.3s ease';
+                    circle.setAttribute('r', '10');
+                    circle.style.filter = 'none';
+                    circle.setAttribute('fill', '#ff6b35');
+                    
+                    // Remove transition after animation
+                    setTimeout(() => {
+                        if (circle.style) {
+                            circle.style.transition = 'all 0.2s ease';
+                        }
+                    }, 300);
+                }
+                
+                // Remove dragging class
+                handle.classList.remove('dragging');
+                
+                // Final render to ensure accuracy
+                this.renderConnections();
+                
+                // Cancel any pending animation frame
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+        });
+        
+        // Prevent default drag behavior
+        handle.addEventListener('dragstart', (e) => e.preventDefault());
+        
+        handle.style.cursor = 'move';
+    }
+
+    showTemporaryFeedback(message, x, y, color = '#38BDF8') {
+        // Create temporary feedback element
+        const feedback = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        feedback.setAttribute('class', 'temporary-feedback');
+        feedback.setAttribute('transform', `translate(${x}, ${y})`);
+        
+        // Background circle
+        const bg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        bg.setAttribute('r', '20');
+        bg.setAttribute('fill', color);
+        bg.setAttribute('fill-opacity', '0.2');
+        bg.setAttribute('stroke', color);
+        bg.setAttribute('stroke-width', '2');
+        
+        // Text
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '0');
+        text.setAttribute('y', '-25');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('fill', color);
+        text.setAttribute('font-size', '12');
+        text.setAttribute('font-weight', 'bold');
+        text.textContent = message;
+        
+        feedback.appendChild(bg);
+        feedback.appendChild(text);
+        this.controlLayer.appendChild(feedback);
+        
+        // Animate and remove
+        let scale = 1;
+        let opacity = 1;
+        const animate = () => {
+            scale += 0.05;
+            opacity -= 0.05;
+            
+            if (opacity <= 0) {
+                feedback.remove();
+                return;
+            }
+            
+            feedback.setAttribute('transform', `translate(${x}, ${y}) scale(${scale})`);
+            feedback.style.opacity = opacity;
+            
+            requestAnimationFrame(animate);
+        };
+        
+        requestAnimationFrame(animate);
+    }
+
+    updateControlPointsForMovedNodes() {
+        // Update control points when nodes move to maintain curve proportions
+        this.connectionControlPoints.forEach((controlData, connectionId) => {
+            const connection = this.connections.find(c => c.id === connectionId);
+            if (!connection) return;
+            
+            const fromNode = this.nodes.find(n => n.id === connection.from);
+            const toNode = this.nodes.find(n => n.id === connection.to);
+            
+            if (!fromNode || !toNode) return;
+            
+            // Calculate current connection parameters
+            const dx = toNode.x - fromNode.x;
+            const dy = toNode.y - fromNode.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < 1) return;
+            
+            // Calculate the center of the new connection
+            const centerX = (fromNode.x + toNode.x) / 2;
+            const centerY = (fromNode.y + toNode.y) / 2;
+            
+            // For each control point, apply a proportional shift to maintain curve shape
+            controlData.points.forEach(point => {
+                // Simple proportional shift - you could make this more sophisticated
+                const shiftFactor = 0.5; // How much control points follow the nodes
+                
+                // Calculate current offset from connection center
+                const currentCenterX = controlData.points.reduce((sum, p) => sum + p.x, 0) / controlData.points.length;
+                const currentCenterY = controlData.points.reduce((sum, p) => sum + p.y, 0) / controlData.points.length;
+                
+                // Shift towards new center
+                const shiftX = (centerX - currentCenterX) * shiftFactor;
+                const shiftY = (centerY - currentCenterY) * shiftFactor;
+                
+                point.x += shiftX;
+                point.y += shiftY;
+            });
+            
+            // Update control point handles if they're visible
+            if (controlData.visible) {
+                controlData.points.forEach(point => {
+                    const handle = document.querySelector(`[data-connection-id="${connectionId}"][data-point-id="${point.id}"]`);
+                    if (handle) {
+                        handle.setAttribute('transform', `translate(${point.x}, ${point.y})`);
+                    }
+                });
+            }
+        });
+    }
+
+
+    createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode, connectionId = null) {
+        // Check if this connection has custom control points
+        if (connectionId && this.connectionControlPoints.has(connectionId)) {
+            const controlData = this.connectionControlPoints.get(connectionId);
+            return this.generateCurveFromControlPoints(startX, startY, endX, endY, controlData.points);
+        }
+        
+        // Calculate the vector from start to end
         const dx = endX - startX;
         const dy = endY - startY;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1020,51 +1732,88 @@ class MindMap {
         // Calculate the angle of the connection
         const angle = Math.atan2(dy, dx);
         
-        // Control point distance - longer for distant nodes, shorter for close nodes
-        const controlDistance = Math.min(distance * 0.4, 150);
+        // Control point distance for proper Bézier curves
+        const controlDistance = Math.min(distance * 0.4, 100);
         
-        // Calculate tangent directions for organic curves
-        // From node: tangent pointing outward from center
-        const fromCenterDx = startX - fromNode.x;
-        const fromCenterDy = startY - fromNode.y;
-        const fromCenterDistance = Math.sqrt(fromCenterDx * fromCenterDx + fromCenterDy * fromCenterDy);
+        // Create curved Bézier by offsetting control points perpendicular to the connection
+        // Calculate perpendicular direction (rotated 90 degrees)
+        const perpAngle = angle + Math.PI / 2;
+        const curvature = Math.min(distance * 0.3, 60); // How much the curve bends
         
-        let fromTangentX, fromTangentY;
-        if (fromCenterDistance > 0) {
-            fromTangentX = (fromCenterDx / fromCenterDistance) * controlDistance;
-            fromTangentY = (fromCenterDy / fromCenterDistance) * controlDistance;
-        } else {
-            fromTangentX = Math.cos(angle) * controlDistance;
-            fromTangentY = Math.sin(angle) * controlDistance;
+        // First control point: 1/3 along connection + perpendicular offset
+        const cp1BaseX = startX + Math.cos(angle) * (distance * 0.33);
+        const cp1BaseY = startY + Math.sin(angle) * (distance * 0.33);
+        const cp1X = cp1BaseX + Math.cos(perpAngle) * curvature;
+        const cp1Y = cp1BaseY + Math.sin(perpAngle) * curvature;
+        
+        // Second control point: 2/3 along connection + same perpendicular offset
+        const cp2BaseX = startX + Math.cos(angle) * (distance * 0.67);
+        const cp2BaseY = startY + Math.sin(angle) * (distance * 0.67);
+        const cp2X = cp2BaseX + Math.cos(perpAngle) * curvature;
+        const cp2Y = cp2BaseY + Math.sin(perpAngle) * curvature;
+        
+        // Store default control points for this connection if not already stored
+        if (connectionId && !this.connectionControlPoints.has(connectionId)) {
+            this.connectionControlPoints.set(connectionId, {
+                points: [
+                    { id: 'cp1', x: cp1X, y: cp1Y },
+                    { id: 'cp2', x: cp2X, y: cp2Y }
+                ],
+                visible: false
+            });
         }
         
-        // To node: tangent pointing toward center
-        const toCenterDx = endX - toNode.x;
-        const toCenterDy = endY - toNode.y;
-        const toCenterDistance = Math.sqrt(toCenterDx * toCenterDx + toCenterDy * toCenterDy);
-        
-        let toTangentX, toTangentY;
-        if (toCenterDistance > 0) {
-            toTangentX = -(toCenterDx / toCenterDistance) * controlDistance;
-            toTangentY = -(toCenterDy / toCenterDistance) * controlDistance;
-        } else {
-            toTangentX = -Math.cos(angle) * controlDistance;
-            toTangentY = -Math.sin(angle) * controlDistance;
-        }
-        
-        // Apply some organic variation based on node positions
-        const organicFactor = 0.3;
-        const organicVariationX = Math.sin(fromNode.x * 0.01 + toNode.y * 0.01) * controlDistance * organicFactor;
-        const organicVariationY = Math.cos(fromNode.y * 0.01 + toNode.x * 0.01) * controlDistance * organicFactor;
-        
-        // Calculate control points
-        const cp1X = startX + fromTangentX + organicVariationX;
-        const cp1Y = startY + fromTangentY + organicVariationY;
-        const cp2X = endX + toTangentX - organicVariationX;
-        const cp2Y = endY + toTangentY - organicVariationY;
-        
-        // Create cubic Bézier curve (more sophisticated than quadratic)
+        // Create proper cubic Bézier curve
         return `M ${startX} ${startY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${endX} ${endY}`;
+    }
+
+    generateCurveFromControlPoints(startX, startY, endX, endY, controlPoints) {
+        const numPoints = controlPoints.length;
+        
+        if (numPoints === 0) {
+            // Straight line
+            return `M ${startX} ${startY} L ${endX} ${endY}`;
+        } else if (numPoints === 1) {
+            // Quadratic Bézier curve (2nd degree)
+            const cp = controlPoints[0];
+            return `M ${startX} ${startY} Q ${cp.x} ${cp.y} ${endX} ${endY}`;
+        } else if (numPoints === 2) {
+            // Cubic Bézier curve (3rd degree)
+            const cp1 = controlPoints[0];
+            const cp2 = controlPoints[1];
+            return `M ${startX} ${startY} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${endX} ${endY}`;
+        } else {
+            // Multiple control points - create smooth path using cubic Bézier segments
+            let path = `M ${startX} ${startY}`;
+            
+            if (numPoints === 3) {
+                // For 3 points, create a smooth curve through all points
+                const cp1 = controlPoints[0];
+                const cp2 = controlPoints[1];
+                const cp3 = controlPoints[2];
+                
+                // Create two connected cubic Bézier segments
+                const midX = (cp1.x + cp2.x) / 2;
+                const midY = (cp1.y + cp2.y) / 2;
+                
+                path += ` C ${cp1.x} ${cp1.y}, ${midX} ${midY}, ${cp2.x} ${cp2.y}`;
+                path += ` S ${cp3.x} ${cp3.y}, ${endX} ${endY}`;
+            } else {
+                // For more than 3 points, create a smooth spline
+                for (let i = 0; i < numPoints; i++) {
+                    const cp = controlPoints[i];
+                    if (i === 0) {
+                        path += ` C ${cp.x} ${cp.y},`;
+                    } else if (i === numPoints - 1) {
+                        path += ` ${cp.x} ${cp.y}, ${endX} ${endY}`;
+                    } else {
+                        path += ` ${cp.x} ${cp.y},`;
+                    }
+                }
+            }
+            
+            return path;
+        }
     }
 
     startDragConnection(node, event, startX = null, startY = null) {
@@ -1115,7 +1864,7 @@ class MindMap {
             const mouseNode = { x: mouseX, y: mouseY };
             
             // Use the same Coggle-style path generation as rendered connections
-            const pathData = this.createCoggleConnectionPath(startX, startY, mouseX, mouseY, this.dragConnectionStart, mouseNode, null);
+            const pathData = this.createCoggleConnectionPath(startX, startY, mouseX, mouseY, this.dragConnectionStart, mouseNode);
             this.dragConnectionLine.setAttribute('d', pathData);
         }
         
@@ -1225,15 +1974,9 @@ class MindMap {
         // Create a temporary target "node" at the end position for consistent curve calculation
         const endNode = { x: endX, y: endY };
         
-        // TEMPORARY: Use simple straight line for testing
-        const simplePathData = `M ${startX} ${startY} L ${endX} ${endY}`;
-        console.log('Using simple path data for testing:', simplePathData);
-        this.dragConnectionLine.setAttribute('d', simplePathData);
-        
-        // Original Coggle-style path (commented out for testing):
-        // const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, this.dragConnectionStart, endNode);
-        // console.log('Generated path data:', pathData);
-        // this.dragConnectionLine.setAttribute('d', pathData);
+        // Use the original Coggle-style path generation
+        const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, this.dragConnectionStart, endNode);
+        this.dragConnectionLine.setAttribute('d', pathData);
         console.log('Updated dragConnectionLine d attribute');
     }
 
@@ -1304,29 +2047,14 @@ class MindMap {
             this.nodes = this.nodes.filter(n => n.id !== this.pendingConnection.tempNode.id);
         }
         
-        // Store the start node for the connection
-        const startNode = this.pendingConnection.startNode;
-        const endX = this.pendingConnection.endX;
-        const endY = this.pendingConnection.endY;
-        
         // Create new real node at stored position
-        this.addNode(endX, endY, 'New Node');
+        this.addNode(this.pendingConnection.endX, this.pendingConnection.endY, 'New Node');
         
         // Get the newly created node
         const createdNode = this.nodes[this.nodes.length - 1];
         
-        // Create connection with proper edge-to-edge calculation
-        const connection = {
-            id: `conn_${Date.now()}`,
-            from: startNode.id,
-            to: createdNode.id
-        };
-        
-        // Initialize default control points
-        this.initializeControlPoints(connection, startNode, createdNode);
-        
-        this.connections.push(connection);
-        this.renderConnections();
+        // Connect to it with a real connection (using existing createConnection logic)
+        this.createConnection(this.pendingConnection.startNode, createdNode);
         
         this.cancelPendingConnection();
     }
@@ -1397,6 +2125,7 @@ class MindMap {
             circle.style.animation = '';
         }
     }
+
 
     updateSelectionRectangle(startX, startY, endX, endY) {
         const x = Math.min(startX, endX);

@@ -224,6 +224,34 @@ body {
     filter: drop-shadow(0 0 4px rgba(52, 152, 219, 0.5));
 }
 
+/* Control Point Handles */
+.control-point-handle {
+    cursor: grab;
+    transition: transform 0.2s ease;
+}
+
+.control-point-handle:hover {
+    transform: scale(1.2);
+}
+
+.control-point-handle:hover .control-point-circle {
+    fill: #e55a2b;
+    filter: drop-shadow(0 0 6px rgba(255, 107, 53, 0.8));
+}
+
+.control-point-circle {
+    transition: all 0.2s ease;
+}
+
+.control-point-handle.dragging {
+    z-index: 1000;
+}
+
+.control-point-handle.dragging .control-point-circle {
+    filter: drop-shadow(0 0 15px rgba(255, 107, 53, 1)) !important;
+    transform: scale(1.2);
+}
+
 .node-input {
     position: absolute;
     background: var(--secondary-bg);

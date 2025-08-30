@@ -5,7 +5,8 @@
       "Bash(npm start)",
       "Bash(npm install)",
       "Bash(npx http-server:*)",
-      "Bash(node server.js)"
+      "Bash(node server.js)",
+      "Bash(python:*)"
     ],
     "deny": [],
     "ask": []
