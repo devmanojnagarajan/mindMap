@@ -8,6 +8,7 @@ class MindMap {
         this.selectedNodes = new Set();
         this.isConnectMode = false;
         this.connectionStart = null;
+        this.connectionControlPoints = new Map(); // Store control points for each connection
         this.clipboard = [];
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
@@ -327,14 +328,17 @@ class MindMap {
                     path.setAttribute('data-connection-id', connection.id);
                     
                     // Create Coggle-style Bézier curve with proper control points
-                    const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode);
+                    const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode, connection.id);
                     path.setAttribute('d', pathData);
                     
-                    // Add click handler for deletion
+                    // Add click handler for control points and deletion
                     path.addEventListener('click', (e) => {
                         if (e.ctrlKey || e.altKey) {
                             e.stopPropagation();
                             this.deleteConnection(connection.id);
+                        } else if (e.shiftKey) {
+                            e.stopPropagation();
+                            this.toggleConnectionControlPoints(connection.id);
                         }
                     });
                     
@@ -872,6 +876,10 @@ class MindMap {
                 from: fromNode.id,
                 to: toNode.id
             };
+            
+            // Initialize control points for this connection
+            this.initializeControlPoints(connection, fromNode, toNode);
+            
             this.connections.push(connection);
             this.renderConnections();
         }
@@ -959,8 +967,48 @@ class MindMap {
         this.renderConnections();
     }
 
-    createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode) {
-        // Calculate the vector from start to end
+    initializeControlPoints(connection, fromNode, toNode) {
+        const dx = toNode.x - fromNode.x;
+        const dy = toNode.y - fromNode.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Calculate default control points positions
+        const controlDistance = Math.min(distance * 0.4, 150);
+        const angle = Math.atan2(dy, dx);
+        
+        // Three control points for cubic Bézier curve
+        const cp1X = fromNode.x + Math.cos(angle) * (controlDistance * 0.8);
+        const cp1Y = fromNode.y + Math.sin(angle) * (controlDistance * 0.8);
+        
+        const midX = (fromNode.x + toNode.x) / 2;
+        const midY = (fromNode.y + toNode.y) / 2;
+        const cp2X = midX + Math.cos(angle + Math.PI / 2) * (controlDistance * 0.3);
+        const cp2Y = midY + Math.sin(angle + Math.PI / 2) * (controlDistance * 0.3);
+        
+        const cp3X = toNode.x - Math.cos(angle) * (controlDistance * 0.8);
+        const cp3Y = toNode.y - Math.sin(angle) * (controlDistance * 0.8);
+        
+        this.connectionControlPoints.set(connection.id, {
+            cp1: { x: cp1X, y: cp1Y },
+            cp2: { x: cp2X, y: cp2Y },
+            cp3: { x: cp3X, y: cp3Y },
+            visible: false
+        });
+    }
+
+    createCoggleConnectionPath(startX, startY, endX, endY, fromNode, toNode, connectionId = null) {
+        // If we have control points for this connection, use them
+        if (connectionId && this.connectionControlPoints.has(connectionId)) {
+            const controlPoints = this.connectionControlPoints.get(connectionId);
+            const cp1 = controlPoints.cp1;
+            const cp2 = controlPoints.cp2;
+            const cp3 = controlPoints.cp3;
+            
+            // Use cubic Bézier with three control points
+            return `M ${startX} ${startY} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${cp3.x} ${cp3.y} ${endX} ${endY}`;
+        }
+        
+        // Fallback to original algorithm for connections without control points
         const dx = endX - startX;
         const dy = endY - startY;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -1067,7 +1115,7 @@ class MindMap {
             const mouseNode = { x: mouseX, y: mouseY };
             
             // Use the same Coggle-style path generation as rendered connections
-            const pathData = this.createCoggleConnectionPath(startX, startY, mouseX, mouseY, this.dragConnectionStart, mouseNode);
+            const pathData = this.createCoggleConnectionPath(startX, startY, mouseX, mouseY, this.dragConnectionStart, mouseNode, null);
             this.dragConnectionLine.setAttribute('d', pathData);
         }
         
@@ -1256,12 +1304,29 @@ class MindMap {
             this.nodes = this.nodes.filter(n => n.id !== this.pendingConnection.tempNode.id);
         }
         
+        // Store the start node for the connection
+        const startNode = this.pendingConnection.startNode;
+        const endX = this.pendingConnection.endX;
+        const endY = this.pendingConnection.endY;
+        
         // Create new real node at stored position
-        this.addNode(this.pendingConnection.endX, this.pendingConnection.endY, 'New Node');
+        this.addNode(endX, endY, 'New Node');
+        
         // Get the newly created node
         const createdNode = this.nodes[this.nodes.length - 1];
-        // Connect to it with a real connection
-        this.createConnection(this.pendingConnection.startNode, createdNode);
+        
+        // Create connection with proper edge-to-edge calculation
+        const connection = {
+            id: `conn_${Date.now()}`,
+            from: startNode.id,
+            to: createdNode.id
+        };
+        
+        // Initialize default control points
+        this.initializeControlPoints(connection, startNode, createdNode);
+        
+        this.connections.push(connection);
+        this.renderConnections();
         
         this.cancelPendingConnection();
     }
