@@ -6,7 +6,9 @@
       "Bash(npm install)",
       "Bash(npx http-server:*)",
       "Bash(node server.js)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(start http://localhost:8080/)",
+      "Bash(rg:*)"
     ],
     "deny": [],
     "ask": []

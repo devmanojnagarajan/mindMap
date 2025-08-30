@@ -9,6 +9,14 @@ class MindMap {
         this.isConnectMode = false;
         this.connectionStart = null;
         this.connectionControlPoints = new Map(); // Store custom control points for connections
+        
+        // Initialize managers after layers are created
+        setTimeout(() => {
+            this.nodeManager = new NodeManager(this);
+            this.connectionManager = new ConnectionManager(this);
+            console.log('🔵 NodeManager initialized');
+            console.log('🔗 ConnectionManager initialized');
+        }, 100);
         this.clipboard = [];
         this.isDragging = false;
         this.dragStart = { x: 0, y: 0 };
@@ -33,10 +41,17 @@ class MindMap {
         this.nodeIdCounter = 0;
         this.minimap = document.getElementById('minimap');
         this.minimapBounds = { x: -1000, y: -1000, width: 2000, height: 2000 };
+        this.nodePanel = document.getElementById('node-panel');
+        this.currentEditingNode = null;
         
         this.init();
         this.setupEventListeners();
-        this.addRootNode();
+        this.setupPanelEventListeners();
+        this.setupHelpTooltip();
+        this.loadSharedMap();
+        if (this.nodes.length === 0) {
+            this.addRootNode();
+        }
     }
 
     init() {
@@ -135,6 +150,109 @@ class MindMap {
         });
     }
 
+    setupPanelEventListeners() {
+        // Close panel button
+        document.getElementById('close-panel').addEventListener('click', () => {
+            this.closeNodePanel();
+        });
+
+        // Image upload
+        document.getElementById('upload-image-btn').addEventListener('click', () => {
+            document.getElementById('image-upload').click();
+        });
+
+        document.getElementById('image-upload').addEventListener('change', (e) => {
+            this.handleImageUpload(e);
+        });
+
+        // Remove image
+        document.getElementById('remove-image').addEventListener('click', () => {
+            this.removeNodeImage();
+        });
+
+        // Image position
+        document.getElementById('image-position').addEventListener('change', (e) => {
+            this.updateNodeImagePosition(e.target.value);
+        });
+
+        // Text styling
+        document.getElementById('font-family').addEventListener('change', (e) => {
+            this.updateNodeStyle('fontFamily', e.target.value);
+        });
+
+        document.getElementById('font-size').addEventListener('input', (e) => {
+            const size = e.target.value;
+            document.getElementById('font-size-value').textContent = size + 'px';
+            this.updateNodeStyle('fontSize', parseInt(size));
+        });
+
+        document.getElementById('font-weight').addEventListener('change', (e) => {
+            this.updateNodeStyle('fontWeight', e.target.value);
+        });
+
+        document.getElementById('text-color').addEventListener('input', (e) => {
+            this.updateNodeStyle('textColor', e.target.value);
+        });
+
+        document.getElementById('text-align').addEventListener('change', (e) => {
+            this.updateNodeStyle('textAlign', e.target.value);
+        });
+
+        // Node colors
+        document.getElementById('node-bg-color').addEventListener('input', (e) => {
+            this.updateNodeStyle('backgroundColor', e.target.value);
+        });
+
+        document.getElementById('node-border-color').addEventListener('input', (e) => {
+            this.updateNodeStyle('borderColor', e.target.value);
+        });
+
+        // Shape controls
+        document.getElementById('node-shape').addEventListener('change', (e) => {
+            this.updateNodeShape('type', e.target.value);
+            this.toggleShapeControls(e.target.value);
+        });
+
+        document.getElementById('node-width').addEventListener('input', (e) => {
+            const width = e.target.value;
+            document.getElementById('node-width-value').textContent = width + 'px';
+            this.updateNodeShape('width', parseInt(width));
+        });
+
+        document.getElementById('node-height').addEventListener('input', (e) => {
+            const height = e.target.value;
+            document.getElementById('node-height-value').textContent = height + 'px';
+            this.updateNodeShape('height', parseInt(height));
+        });
+
+        document.getElementById('corner-radius').addEventListener('input', (e) => {
+            const radius = e.target.value;
+            document.getElementById('corner-radius-value').textContent = radius + 'px';
+            this.updateNodeShape('cornerRadius', parseInt(radius));
+        });
+
+        // Share functionality
+        document.getElementById('export-image').addEventListener('click', () => {
+            this.exportAsImage();
+        });
+
+        document.getElementById('copy-share-link').addEventListener('click', () => {
+            this.copyShareLink();
+        });
+
+        document.getElementById('export-json').addEventListener('click', () => {
+            this.exportAsJSON();
+        });
+
+        document.getElementById('import-json-btn').addEventListener('click', () => {
+            document.getElementById('import-json').click();
+        });
+
+        document.getElementById('import-json').addEventListener('change', (e) => {
+            this.importFromJSON(e);
+        });
+    }
+
     updateCanvasSize() {
         const container = document.getElementById('canvas-container');
         this.canvas.setAttribute('width', container.clientWidth);
@@ -150,63 +268,158 @@ class MindMap {
     }
 
     addNode(x = null, y = null, text = 'New Node') {
-        if (x === null || y === null) {
-            if (this.selectedNode) {
-                const parentNode = this.selectedNode;
-                const angle = Math.random() * 2 * Math.PI;
-                const distance = 150;
-                x = parentNode.x + Math.cos(angle) * distance;
-                y = parentNode.y + Math.sin(angle) * distance;
-                
-                const connection = {
-                    id: `conn_${this.nodeIdCounter}`,
-                    from: parentNode.id,
-                    to: `node_${this.nodeIdCounter}`
-                };
-                this.connections.push(connection);
-            } else {
-                x = Math.random() * (this.viewBox.width - 200) + 100;
-                y = Math.random() * (this.viewBox.height - 200) + 100;
+        if (this.nodeManager) {
+            // Use node manager for node creation
+            return this.nodeManager.addNode(x, y, text);
+        } else {
+            // Fallback implementation (temporary until managers load)
+            if (x === null || y === null) {
+                if (this.selectedNode) {
+                    const parentNode = this.selectedNode;
+                    const angle = Math.random() * 2 * Math.PI;
+                    const distance = 150;
+                    x = parentNode.x + Math.cos(angle) * distance;
+                    y = parentNode.y + Math.sin(angle) * distance;
+                    
+                    const connection = {
+                        id: `conn_${this.nodeIdCounter}`,
+                        from: parentNode.id,
+                        to: `node_${this.nodeIdCounter}`
+                    };
+                    this.connections.push(connection);
+                } else {
+                    x = Math.random() * (this.viewBox.width - 200) + 100;
+                    y = Math.random() * (this.viewBox.height - 200) + 100;
+                }
             }
-        }
 
-        const node = {
-            id: `node_${this.nodeIdCounter++}`,
-            x: x,
-            y: y,
-            text: text,
-            radius: 40
-        };
+            const node = {
+                id: `node_${this.nodeIdCounter++}`,
+                x: x, y: y, text: text, radius: 40,
+                image: null, imagePosition: 'before',
+                shape: { type: 'circle', width: 80, height: 80, cornerRadius: 15 },
+                style: {
+                    fontFamily: 'Poppins', fontSize: 14, fontWeight: 400,
+                    textColor: '#F9FAFB', textAlign: 'center',
+                    backgroundColor: '#374151', borderColor: '#4B5563'
+                }
+            };
 
-        this.nodes.push(node);
-        this.renderNode(node);
-        
-        
-        if (this.connections.length > 0) {
-            this.renderConnections();
+            this.nodes.push(node);
+            this.renderNode(node);
+            
+            if (this.connections.length > 0) {
+                this.renderConnections();
+            }
+            
+            return node;
         }
     }
 
-    renderNode(node) {
-        this.updateMinimapBounds(node.x, node.y);
-        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        group.setAttribute('class', 'node');
-        group.setAttribute('data-node-id', node.id);
-        group.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+    renderNode(node, isUpdate = false) {
+        if (this.nodeManager) {
+            return this.nodeManager.renderNode(node, isUpdate);
+        } else {
+            // Fallback implementation for before managers load
+            this.updateMinimapBounds(node.x, node.y);
+            
+            // Ensure node has shape property (backward compatibility)
+            if (!node.shape) {
+                node.shape = {
+                    type: 'circle',
+                    width: 80,
+                    height: 80,
+                    cornerRadius: 15
+                };
+            }
+            
+            // Remove existing node if updating
+            if (isUpdate) {
+                const existingNode = document.querySelector(`[data-node-id="${node.id}"]`);
+                if (existingNode) {
+                    existingNode.remove();
+                }
+            }
 
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('class', 'node-circle');
-        circle.setAttribute('r', node.radius);
-        circle.setAttribute('cx', 0);
-        circle.setAttribute('cy', 0);
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.setAttribute('class', 'node');
+            group.setAttribute('data-node-id', node.id);
+            group.setAttribute('transform', `translate(${node.x}, ${node.y})`);
 
+            // Calculate layout dimensions
+            const imageSize = node.image ? 50 : 0;
+            const spacing = node.image ? 10 : 0;
+            const totalHeight = imageSize + spacing + 20; // 20 for text height
+            
+            // Calculate shape dimensions based on content
+            let shapeWidth = node.shape.width;
+            let shapeHeight = node.shape.height;
+            
+            if (node.shape.type === 'circle') {
+                const radius = Math.max(node.radius, totalHeight / 2 + 10);
+                shapeWidth = shapeHeight = radius * 2;
+            } else {
+                // Ensure minimum size for content
+                shapeWidth = Math.max(shapeWidth, 80);
+                shapeHeight = Math.max(shapeHeight, Math.max(60, totalHeight + 20));
+            }
+
+            // Create shape based on type
+            const shapeElement = this.createShapeElement(node.shape.type, shapeWidth, shapeHeight, node.shape.cornerRadius);
+        shapeElement.setAttribute('class', 'node-shape');
+        shapeElement.style.fill = node.style.backgroundColor;
+        shapeElement.style.stroke = node.style.borderColor;
+        shapeElement.style.strokeWidth = '2';
+
+        group.appendChild(shapeElement);
+
+        // Calculate positions for image and text
+        let imageY = 0;
+        let textY = 0;
+
+        if (node.image) {
+            if (node.imagePosition === 'before') {
+                imageY = -spacing - imageSize/2;
+                textY = spacing + imageSize/2;
+            } else {
+                textY = -spacing - 10;
+                imageY = spacing + 10;
+            }
+        } else {
+            textY = 0;
+        }
+
+        // Add image if present
+        if (node.image) {
+            const foreignObject = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+            foreignObject.setAttribute('x', -imageSize/2);
+            foreignObject.setAttribute('y', imageY - imageSize/2);
+            foreignObject.setAttribute('width', imageSize);
+            foreignObject.setAttribute('height', imageSize);
+
+            const img = document.createElement('img');
+            img.src = node.image;
+            img.style.width = '100%';
+            img.style.height = '100%';
+            img.style.borderRadius = '8px';
+            img.style.objectFit = 'cover';
+            
+            foreignObject.appendChild(img);
+            group.appendChild(foreignObject);
+        }
+
+        // Create text with custom styling
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('class', 'node-text');
         text.setAttribute('x', 0);
-        text.setAttribute('y', 0);
+        text.setAttribute('y', textY);
+        text.setAttribute('text-anchor', node.style.textAlign === 'center' ? 'middle' : node.style.textAlign);
+        text.style.fontFamily = node.style.fontFamily;
+        text.style.fontSize = `${node.style.fontSize}px`;
+        text.style.fontWeight = node.style.fontWeight;
+        text.style.fill = node.style.textColor;
         text.textContent = node.text;
 
-        group.appendChild(circle);
         group.appendChild(text);
         this.nodeLayer.appendChild(group);
 
@@ -265,22 +478,27 @@ class MindMap {
 
         group.addEventListener('dblclick', (e) => {
             e.stopPropagation();
-            this.editNode(node, text);
+            this.openNodePanel(node);
         });
     }
 
     selectNode(node) {
-        if (this.selectedNode) {
-            const prevSelected = document.querySelector(`[data-node-id="${this.selectedNode.id}"] .node-circle`);
-            if (prevSelected) {
-                prevSelected.classList.remove('selected');
+        if (this.nodeManager) {
+            return this.nodeManager.selectNode(node);
+        } else {
+            // Fallback implementation for before managers load
+            if (this.selectedNode) {
+                const prevSelected = document.querySelector(`[data-node-id="${this.selectedNode.id}"] .node-circle, [data-node-id="${this.selectedNode.id}"] .node-shape`);
+                if (prevSelected) {
+                    prevSelected.classList.remove('selected');
+                }
             }
-        }
 
-        this.selectedNode = node;
-        const circle = document.querySelector(`[data-node-id="${node.id}"] .node-circle`);
-        if (circle) {
-            circle.classList.add('selected');
+            this.selectedNode = node;
+            const shape = document.querySelector(`[data-node-id="${node.id}"] .node-circle, [data-node-id="${node.id}"] .node-shape`);
+            if (shape) {
+                shape.classList.add('selected');
+            }
         }
     }
 
@@ -314,27 +532,466 @@ class MindMap {
         });
     }
 
-    deleteNode(node) {
-        this.nodes = this.nodes.filter(n => n.id !== node.id);
-        this.connections = this.connections.filter(c => c.from !== node.id && c.to !== node.id);
+    openNodePanel(node) {
+        this.currentEditingNode = node;
+        this.populatePanelWithNodeData(node);
+        this.nodePanel.style.display = 'block';
+    }
+
+    closeNodePanel() {
+        this.nodePanel.style.display = 'none';
+        this.currentEditingNode = null;
+    }
+
+    populatePanelWithNodeData(node) {
+        // Ensure node has shape property (backward compatibility)
+        if (!node.shape) {
+            node.shape = {
+                type: 'circle',
+                width: 80,
+                height: 80,
+                cornerRadius: 15
+            };
+        }
+
+        // Update image preview
+        if (node.image) {
+            document.getElementById('preview-img').src = node.image;
+            document.getElementById('image-preview').style.display = 'block';
+            document.getElementById('image-position').value = node.imagePosition;
+        } else {
+            document.getElementById('image-preview').style.display = 'none';
+        }
+
+        // Update text styling controls
+        document.getElementById('font-family').value = node.style.fontFamily;
+        document.getElementById('font-size').value = node.style.fontSize;
+        document.getElementById('font-size-value').textContent = node.style.fontSize + 'px';
+        document.getElementById('font-weight').value = node.style.fontWeight;
+        document.getElementById('text-color').value = node.style.textColor;
+        document.getElementById('text-align').value = node.style.textAlign;
+
+        // Update node color controls
+        document.getElementById('node-bg-color').value = node.style.backgroundColor;
+        document.getElementById('node-border-color').value = node.style.borderColor;
+
+        // Update shape controls
+        document.getElementById('node-shape').value = node.shape.type;
+        document.getElementById('node-width').value = node.shape.width;
+        document.getElementById('node-width-value').textContent = node.shape.width + 'px';
+        document.getElementById('node-height').value = node.shape.height;
+        document.getElementById('node-height-value').textContent = node.shape.height + 'px';
+        document.getElementById('corner-radius').value = node.shape.cornerRadius;
+        document.getElementById('corner-radius-value').textContent = node.shape.cornerRadius + 'px';
         
-        const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`);
-        if (nodeElement) {
-            nodeElement.remove();
+        this.toggleShapeControls(node.shape.type);
+    }
+
+    handleImageUpload(e) {
+        const file = e.target.files[0];
+        if (!file || !this.currentEditingNode) return;
+
+        this.compressAndResizeImage(file, (compressedDataUrl) => {
+            this.currentEditingNode.image = compressedDataUrl;
+            document.getElementById('preview-img').src = compressedDataUrl;
+            document.getElementById('image-preview').style.display = 'block';
+            this.renderNode(this.currentEditingNode, true);
+        });
+    }
+
+    compressAndResizeImage(file, callback) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+
+        img.onload = () => {
+            // Calculate new dimensions (max 100x100 while maintaining aspect ratio)
+            const maxSize = 100;
+            let { width, height } = img;
+            
+            if (width > height) {
+                if (width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Draw and compress
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+            callback(compressedDataUrl);
+        };
+
+        img.src = URL.createObjectURL(file);
+    }
+
+    removeNodeImage() {
+        if (!this.currentEditingNode) return;
+        
+        this.currentEditingNode.image = null;
+        document.getElementById('image-preview').style.display = 'none';
+        document.getElementById('image-upload').value = '';
+        this.renderNode(this.currentEditingNode, true);
+    }
+
+    updateNodeImagePosition(position) {
+        if (!this.currentEditingNode) return;
+        
+        this.currentEditingNode.imagePosition = position;
+        this.renderNode(this.currentEditingNode, true);
+    }
+
+    updateNodeStyle(property, value) {
+        if (!this.currentEditingNode) return;
+        
+        this.currentEditingNode.style[property] = value;
+        this.renderNode(this.currentEditingNode, true);
+    }
+
+    updateNodeShape(property, value) {
+        if (!this.currentEditingNode) return;
+        
+        this.currentEditingNode.shape[property] = value;
+        this.renderNode(this.currentEditingNode, true);
+    }
+
+    toggleShapeControls(shapeType) {
+        const cornerRadiusControl = document.getElementById('corner-radius-control');
+        const sizeControls = document.getElementById('size-controls');
+        
+        // Show corner radius control only for rounded rectangle
+        if (shapeType === 'rounded-rectangle') {
+            cornerRadiusControl.style.display = 'flex';
+        } else {
+            cornerRadiusControl.style.display = 'none';
         }
         
-        this.renderConnections();
-        this.selectedNode = null;
+        // Show size controls for all shapes except circle
+        if (shapeType === 'circle') {
+            sizeControls.style.display = 'none';
+        } else {
+            sizeControls.style.display = 'flex';
+        }
+    }
+
+    createShapeElement(shapeType, width, height, cornerRadius = 0) {
+        const element = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        let pathData = '';
+
+        switch (shapeType) {
+            case 'circle':
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', 0);
+                circle.setAttribute('cy', 0);
+                circle.setAttribute('r', width / 2);
+                return circle;
+
+            case 'rectangle':
+                // Make rectangles have rounded corners by default
+                const rectRadius = Math.min(8, width/4, height/4);
+                pathData = `M ${-width/2 + rectRadius} ${-height/2} 
+                           L ${width/2 - rectRadius} ${-height/2} 
+                           Q ${width/2} ${-height/2} ${width/2} ${-height/2 + rectRadius}
+                           L ${width/2} ${height/2 - rectRadius} 
+                           Q ${width/2} ${height/2} ${width/2 - rectRadius} ${height/2}
+                           L ${-width/2 + rectRadius} ${height/2} 
+                           Q ${-width/2} ${height/2} ${-width/2} ${height/2 - rectRadius}
+                           L ${-width/2} ${-height/2 + rectRadius} 
+                           Q ${-width/2} ${-height/2} ${-width/2 + rectRadius} ${-height/2} Z`;
+                break;
+
+            case 'rounded-rectangle':
+                const r = Math.min(cornerRadius, width/2, height/2);
+                pathData = `M ${-width/2 + r} ${-height/2} 
+                           L ${width/2 - r} ${-height/2} 
+                           Q ${width/2} ${-height/2} ${width/2} ${-height/2 + r}
+                           L ${width/2} ${height/2 - r} 
+                           Q ${width/2} ${height/2} ${width/2 - r} ${height/2}
+                           L ${-width/2 + r} ${height/2} 
+                           Q ${-width/2} ${height/2} ${-width/2} ${height/2 - r}
+                           L ${-width/2} ${-height/2 + r} 
+                           Q ${-width/2} ${-height/2} ${-width/2 + r} ${-height/2} Z`;
+                break;
+
+            case 'triangle':
+                pathData = `M 0 ${-height/2} 
+                           L ${width/2} ${height/2} 
+                           L ${-width/2} ${height/2} Z`;
+                break;
+
+            case 'diamond':
+                pathData = `M 0 ${-height/2} 
+                           L ${width/2} 0 
+                           L 0 ${height/2} 
+                           L ${-width/2} 0 Z`;
+                break;
+
+            case 'pentagon':
+                const points = this.calculatePolygonPoints(5, width/2, height/2);
+                pathData = `M ${points[0].x} ${points[0].y} ` + 
+                          points.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') + ' Z';
+                break;
+
+            case 'hexagon':
+                const hexPoints = this.calculatePolygonPoints(6, width/2, height/2);
+                pathData = `M ${hexPoints[0].x} ${hexPoints[0].y} ` + 
+                          hexPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(' ') + ' Z';
+                break;
+
+            default:
+                // Default to circle
+                const defaultCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                defaultCircle.setAttribute('cx', 0);
+                defaultCircle.setAttribute('cy', 0);
+                defaultCircle.setAttribute('r', width / 2);
+                return defaultCircle;
+        }
+
+        element.setAttribute('d', pathData);
+        return element;
+    }
+
+    calculatePolygonPoints(sides, radiusX, radiusY) {
+        const points = [];
+        const angleStep = (2 * Math.PI) / sides;
+        const startAngle = -Math.PI / 2; // Start from top
+
+        for (let i = 0; i < sides; i++) {
+            const angle = startAngle + (i * angleStep);
+            points.push({
+                x: radiusX * Math.cos(angle),
+                y: radiusY * Math.sin(angle)
+            });
+        }
+        return points;
+    }
+
+    // Share functionality methods
+    exportAsImage() {
+        // Create a temporary canvas for export
+        const svg = this.canvas.cloneNode(true);
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(svg);
+        
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        canvas.width = this.canvas.clientWidth;
+        canvas.height = this.canvas.clientHeight;
+        
+        img.onload = () => {
+            ctx.drawImage(img, 0, 0);
+            
+            // Download the image
+            const link = document.createElement('a');
+            link.download = 'mindmap.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+        
+        const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(svgBlob);
+        img.src = url;
+    }
+
+    async copyShareLink() {
+        // Generate a shareable link with the current map data
+        const mapData = {
+            nodes: this.nodes,
+            connections: this.connections,
+            timestamp: Date.now()
+        };
+        
+        const compressedData = btoa(JSON.stringify(mapData));
+        const shareUrl = `${window.location.origin}${window.location.pathname}?data=${compressedData}`;
+        
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+            // Show notification (you might want to use a notification library)
+            console.log('Share link copied to clipboard!');
+            alert('Share link copied to clipboard!');
+        } catch (err) {
+            console.error('Failed to copy link:', err);
+            alert('Failed to copy link. Please copy manually: ' + shareUrl);
+        }
+    }
+
+    exportAsJSON() {
+        const mapData = {
+            nodes: this.nodes,
+            connections: this.connections,
+            viewBox: this.viewBox,
+            zoomLevel: this.zoomLevel,
+            timestamp: Date.now(),
+            version: '1.0'
+        };
+        
+        const dataStr = JSON.stringify(mapData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = 'mindmap.json';
+        link.click();
+    }
+
+    importFromJSON(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const mapData = JSON.parse(e.target.result);
+                
+                // Clear existing map
+                this.nodes = [];
+                this.connections = [];
+                this.nodeLayer.innerHTML = '';
+                this.connectionLayer.innerHTML = '';
+                
+                // Load nodes
+                this.nodes = mapData.nodes || [];
+                this.connections = mapData.connections || [];
+                this.nodeIdCounter = Math.max(...this.nodes.map(n => parseInt(n.id.split('_')[1]) || 0)) + 1;
+                
+                // Render all nodes
+                this.nodes.forEach(node => this.renderNode(node));
+                this.renderConnections();
+                
+                // Restore view settings if available
+                if (mapData.viewBox) {
+                    this.viewBox = mapData.viewBox;
+                    this.updateViewBox();
+                }
+                if (mapData.zoomLevel) {
+                    this.zoomLevel = mapData.zoomLevel;
+                }
+                
+                console.log('Mind map imported successfully!');
+                alert('Mind map imported successfully!');
+                
+            } catch (error) {
+                console.error('Failed to import mind map:', error);
+                alert('Failed to import mind map. Please check the file format.');
+            }
+        };
+        
+        reader.readAsText(file);
+        event.target.value = ''; // Reset file input
+    }
+
+    setupHelpTooltip() {
+        const helpTooltip = document.getElementById('control-point-help');
+        const helpClose = document.getElementById('help-close');
+        
+        // Close help tooltip
+        helpClose.addEventListener('click', () => {
+            helpTooltip.classList.remove('show');
+        });
+        
+        // Show help tooltip when user first hovers over a connection
+        let helpShown = localStorage.getItem('controlPointHelpShown') === 'true';
+        
+        this.showControlPointHelp = () => {
+            if (!helpShown) {
+                helpTooltip.classList.add('show');
+                helpShown = true;
+                localStorage.setItem('controlPointHelpShown', 'true');
+                
+                // Auto-hide after 10 seconds
+                setTimeout(() => {
+                    if (helpTooltip.classList.contains('show')) {
+                        helpTooltip.classList.remove('show');
+                    }
+                }, 10000);
+            }
+        };
+        
+        // Add keyboard shortcut to show help (H key)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'h' || e.key === 'H') {
+                if (!e.ctrlKey && !e.altKey && !e.shiftKey) {
+                    helpTooltip.classList.toggle('show');
+                }
+            }
+        });
+    }
+
+    // Load shared map from URL parameter
+    loadSharedMap() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedData = urlParams.get('data');
+        
+        if (sharedData) {
+            try {
+                const mapData = JSON.parse(atob(sharedData));
+                
+                // Clear existing map
+                this.nodes = [];
+                this.connections = [];
+                this.nodeLayer.innerHTML = '';
+                this.connectionLayer.innerHTML = '';
+                
+                // Load shared data
+                this.nodes = mapData.nodes || [];
+                this.connections = mapData.connections || [];
+                this.nodeIdCounter = Math.max(...this.nodes.map(n => parseInt(n.id.split('_')[1]) || 0)) + 1;
+                
+                // Render all nodes
+                this.nodes.forEach(node => this.renderNode(node));
+                this.renderConnections();
+                
+                console.log('Shared mind map loaded successfully!');
+                
+            } catch (error) {
+                console.error('Failed to load shared mind map:', error);
+            }
+        }
+    }
+
+    deleteNode(node) {
+        if (this.nodeManager) {
+            return this.nodeManager.deleteNode(node);
+        } else {
+            // Fallback implementation for before managers load
+            this.nodes = this.nodes.filter(n => n.id !== node.id);
+            this.connections = this.connections.filter(c => c.from !== node.id && c.to !== node.id);
+            
+            const nodeElement = document.querySelector(`[data-node-id="${node.id}"]`);
+            if (nodeElement) {
+                nodeElement.remove();
+            }
+            
+            this.renderConnections();
+            this.selectedNode = null;
+        }
     }
 
     renderConnections() {
-        console.log('renderConnections called, current connections:', this.connections.length);
-        console.log('Has temporary connection?', this.connections.some(c => c.isTemporary));
-        console.log('Call stack:', new Error().stack);
+        if (this.connectionManager) {
+            this.connectionManager.renderAllConnections();
+            return;
+        }
+        
+        // Fallback rendering method
+        console.log('🔗 renderConnections called (fallback mode)');
+        console.log('Total connections:', this.connections.length);
         
         const existingConnections = document.querySelectorAll('.connection-line');
-        console.log('Removing', existingConnections.length, 'existing connection lines');
+        const existingOverlays = document.querySelectorAll('.connection-overlay');
+        
         existingConnections.forEach(conn => conn.remove());
+        existingOverlays.forEach(overlay => overlay.remove());
 
         this.connections.forEach(connection => {
             console.log('Processing connection:', connection.id, 'isTemporary:', connection.isTemporary);
@@ -389,26 +1046,46 @@ class MindMap {
                     const clickOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     clickOverlay.setAttribute('d', pathData);
                     clickOverlay.setAttribute('stroke', 'transparent');
-                    clickOverlay.setAttribute('stroke-width', '15'); // Thicker for easier clicking
+                    clickOverlay.setAttribute('stroke-width', '20'); // Make even thicker for easier clicking
                     clickOverlay.setAttribute('fill', 'none');
+                    clickOverlay.setAttribute('data-connection-id', connection.id); // Add identifier
                     clickOverlay.style.pointerEvents = 'all';
                     clickOverlay.style.cursor = 'pointer';
                     
+                    console.log('🎯 Created connection overlay:', {
+                        connectionId: connection.id,
+                        pathData: pathData.substring(0, 50) + '...',
+                        strokeWidth: clickOverlay.getAttribute('stroke-width'),
+                        pointerEvents: clickOverlay.style.pointerEvents
+                    });
+                    
                     // Add click handler for control points and deletion to the overlay
                     clickOverlay.addEventListener('click', (e) => {
-                        console.log('Connection line clicked!', {connectionId: connection.id, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey});
+                        e.stopPropagation();
+                        console.log('🔥 CONNECTION OVERLAY CLICKED! 🔥');
+                        console.log('Connection ID:', connection.id);
+                        console.log('Event details:', {
+                            clientX: e.clientX,
+                            clientY: e.clientY,
+                            ctrlKey: e.ctrlKey,
+                            shiftKey: e.shiftKey,
+                            altKey: e.altKey
+                        });
                         
                         if (e.ctrlKey || e.altKey) {
-                            e.stopPropagation();
+                            // Delete connection
+                            console.log('🗑️ Deleting connection:', connection.id);
                             this.deleteConnection(connection.id);
                         } else if (e.shiftKey) {
-                            e.stopPropagation();
-                            this.toggleConnectionControlPoints(connection.id);
+                            // Toggle control points visibility
+                            console.log('👁️ Toggling control points for:', connection.id);
+                            if (this.controlPointsManager) {
+                                this.controlPointsManager.toggleControlPoints(connection.id);
+                            }
                         } else {
-                            // Regular click - add/remove control point
-                            e.stopPropagation();
-                            console.log('Calling handleCurveClick...');
-                            this.handleCurveClick(e, connection.id, path);
+                            // Regular click - handle control points using new manager
+                            console.log('🎯 Handling control point interaction for connection:', connection.id);
+                            this.handleControlPointClick(e, connection.id);
                         }
                     });
                     
@@ -433,6 +1110,14 @@ class MindMap {
                             path.style.strokeWidth = '3';
                             path.style.stroke = '#9CA3AF'; // Lighter gray on hover for unselected
                         }
+                        
+                        // Show helpful cursor
+                        clickOverlay.style.cursor = 'crosshair';
+                        
+                        // Show help tooltip on first hover
+                        if (this.showControlPointHelp) {
+                            this.showControlPointHelp();
+                        }
                     });
                     
                     clickOverlay.addEventListener('mouseleave', (e) => {
@@ -443,6 +1128,9 @@ class MindMap {
                             path.style.strokeWidth = '2';
                             path.style.stroke = '#6B7280'; // Back to default gray
                         }
+                        
+                        // Reset cursor
+                        clickOverlay.style.cursor = 'pointer';
                     });
                     
                     // Add both elements to connection layer (behind nodes)
@@ -973,110 +1661,151 @@ class MindMap {
     }
 
     createConnection(fromNode, toNode) {
-        const existingConnection = this.connections.find(c => 
-            (c.from === fromNode.id && c.to === toNode.id) ||
-            (c.from === toNode.id && c.to === fromNode.id)
-        );
-        
-        if (existingConnection) {
-            // If connection already exists, remove it (toggle behavior)
-            this.deleteConnection(existingConnection.id);
+        if (this.connectionManager) {
+            this.connectionManager.createConnection(fromNode, toNode);
         } else {
-            // Create new connection
-            const connection = {
-                id: `conn_${Date.now()}`,
-                from: fromNode.id,
-                to: toNode.id
-            };
-            this.connections.push(connection);
-            this.renderConnections();
+            // Fallback for before connection manager is initialized
+            const existingConnection = this.connections.find(c => 
+                (c.from === fromNode.id && c.to === toNode.id) ||
+                (c.from === toNode.id && c.to === fromNode.id)
+            );
+            
+            if (existingConnection) {
+                this.deleteConnection(existingConnection.id);
+            } else {
+                const connection = {
+                    id: `conn_${Date.now()}`,
+                    from: fromNode.id,
+                    to: toNode.id
+                };
+                this.connections.push(connection);
+                this.renderConnections();
+            }
         }
     }
 
     toggleNodeSelection(node) {
-        if (this.selectedNodes.has(node.id)) {
-            this.selectedNodes.delete(node.id);
-            this.unhighlightNode(node);
+        if (this.nodeManager) {
+            return this.nodeManager.toggleNodeSelection(node);
         } else {
-            this.selectedNodes.add(node.id);
-            this.highlightNode(node, 'multi-selected');
+            // Fallback implementation for before managers load
+            if (this.selectedNodes.has(node.id)) {
+                this.selectedNodes.delete(node.id);
+                this.unhighlightNode(node);
+            } else {
+                this.selectedNodes.add(node.id);
+                this.highlightNode(node, 'multi-selected');
+            }
+            this.selectedNode = null;
         }
-        this.selectedNode = null;
     }
 
     clearSelection() {
-        this.selectedNodes.forEach(nodeId => {
-            const node = this.nodes.find(n => n.id === nodeId);
-            if (node) this.unhighlightNode(node);
-        });
-        this.selectedNodes.clear();
-        if (this.selectedNode) {
-            this.unhighlightNode(this.selectedNode);
-            this.selectedNode = null;
-        }
-        if (this.connectionStart) {
-            this.unhighlightNode(this.connectionStart);
-            this.connectionStart = null;
+        if (this.nodeManager) {
+            return this.nodeManager.clearSelection();
+        } else {
+            // Fallback implementation for before managers load
+            this.selectedNodes.forEach(nodeId => {
+                const node = this.nodes.find(n => n.id === nodeId);
+                if (node) this.unhighlightNode(node);
+            });
+            this.selectedNodes.clear();
+            if (this.selectedNode) {
+                this.unhighlightNode(this.selectedNode);
+                this.selectedNode = null;
+            }
+            if (this.connectionStart) {
+                this.unhighlightNode(this.connectionStart);
+                this.connectionStart = null;
+            }
         }
     }
 
     highlightNode(node, type = 'selected') {
-        const circle = document.querySelector(`[data-node-id="${node.id}"] .node-circle`);
-        if (circle) {
-            circle.classList.remove('selected', 'multi-selected', 'connecting');
-            circle.classList.add(type);
+        if (this.nodeManager) {
+            return this.nodeManager.highlightNode(node, type);
+        } else {
+            // Fallback implementation for before managers load
+            const circle = document.querySelector(`[data-node-id="${node.id}"] .node-circle`);
+            if (circle) {
+                circle.classList.remove('selected', 'multi-selected', 'connecting');
+                circle.classList.add(type);
+            }
         }
     }
 
     unhighlightNode(node) {
-        const circle = document.querySelector(`[data-node-id="${node.id}"] .node-circle`);
-        if (circle) {
-            circle.classList.remove('selected', 'multi-selected', 'connecting');
+        if (this.nodeManager) {
+            return this.nodeManager.unhighlightNode(node);
+        } else {
+            // Fallback implementation for before managers load
+            const circle = document.querySelector(`[data-node-id="${node.id}"] .node-circle`);
+            if (circle) {
+                circle.classList.remove('selected', 'multi-selected', 'connecting');
+            }
         }
     }
 
     deleteSelectedNodes() {
-        const nodeIds = Array.from(this.selectedNodes);
-        nodeIds.forEach(nodeId => {
-            const node = this.nodes.find(n => n.id === nodeId);
-            if (node) this.deleteNode(node);
-        });
-        this.selectedNodes.clear();
+        if (this.nodeManager) {
+            return this.nodeManager.deleteSelectedNodes();
+        } else {
+            // Fallback implementation for before managers load
+            const nodeIds = Array.from(this.selectedNodes);
+            nodeIds.forEach(nodeId => {
+                const node = this.nodes.find(n => n.id === nodeId);
+                if (node) this.deleteNode(node);
+            });
+            this.selectedNodes.clear();
+        }
     }
 
     copySelectedNodes() {
-        const selectedNodesList = Array.from(this.selectedNodes).map(nodeId => 
-            this.nodes.find(n => n.id === nodeId)
-        ).filter(node => node);
-        
-        if (selectedNodesList.length > 0) {
-            this.clipboard = selectedNodesList.map(node => ({
-                text: node.text,
-                radius: node.radius
-            }));
+        if (this.nodeManager) {
+            return this.nodeManager.copySelectedNodes();
+        } else {
+            // Fallback implementation for before managers load
+            const selectedNodesList = Array.from(this.selectedNodes).map(nodeId => 
+                this.nodes.find(n => n.id === nodeId)
+            ).filter(node => node);
+            
+            if (selectedNodesList.length > 0) {
+                this.clipboard = selectedNodesList.map(node => ({
+                    text: node.text,
+                    radius: node.radius
+                }));
+            }
         }
     }
 
     pasteNodes() {
-        if (this.clipboard.length > 0) {
-            const centerX = this.viewBox.x + this.viewBox.width / 2;
-            const centerY = this.viewBox.y + this.viewBox.height / 2;
-            
-            this.clipboard.forEach((nodeData, index) => {
-                const offsetX = (index % 3) * 100;
-                const offsetY = Math.floor(index / 3) * 100;
-                this.addNode(centerX + offsetX, centerY + offsetY, nodeData.text);
-            });
+        if (this.nodeManager) {
+            return this.nodeManager.pasteNodes();
+        } else {
+            // Fallback implementation for before managers load
+            if (this.clipboard.length > 0) {
+                const centerX = this.viewBox.x + this.viewBox.width / 2;
+                const centerY = this.viewBox.y + this.viewBox.height / 2;
+                
+                this.clipboard.forEach((nodeData, index) => {
+                    const offsetX = (index % 3) * 100;
+                    const offsetY = Math.floor(index / 3) * 100;
+                    this.addNode(centerX + offsetX, centerY + offsetY, nodeData.text);
+                });
+            }
         }
     }
 
     deleteConnection(connectionId) {
-        this.connections = this.connections.filter(c => c.id !== connectionId);
-        // Remove control points for this connection
-        this.connectionControlPoints.delete(connectionId);
-        // Remove any visible control point handles
-        document.querySelectorAll(`[data-connection-id="${connectionId}"]`).forEach(handle => handle.remove());
-        this.renderConnections();
+        if (this.connectionManager) {
+            this.connectionManager.deleteConnection(connectionId);
+        } else {
+            // Fallback method
+            this.connections = this.connections.filter(c => c.id !== connectionId);
+            this.connectionControlPoints.delete(connectionId);
+            document.querySelectorAll(`[data-connection-id="${connectionId}"]`).forEach(handle => handle.remove());
+            this.renderConnections();
+        }
     }
 
     handleCurveClick(event, connectionId, pathElement) {
@@ -1261,27 +1990,128 @@ class MindMap {
         console.log(`Added control point. Total: ${controlData.points.length}`, controlData.points);
         this.updateCurveTypeInfo(connectionId, controlData.points.length);
         
-        // Re-render the connection with updated control points
-        this.renderConnections();
+        // Smoothly update the connection curve
+        this.smoothUpdateConnection(connectionId);
+        
+        // Show control points with entrance animation
+        setTimeout(() => {
+            this.hideAllControlPoints();
+            this.showControlPointsWithAnimation(connectionId, newId);
+        }, 100);
+    }
+
+    showControlPointsWithAnimation(connectionId, newPointId = null) {
+        const controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData || !controlData.visible) return;
+        
+        // Clear existing control point handles
+        const existingHandles = document.querySelectorAll(`[data-connection-id="${connectionId}"].control-point-handle`);
+        existingHandles.forEach(handle => handle.remove());
+        
+        // Show control points with staggered animation
+        controlData.points.forEach((point, index) => {
+            this.createControlPointHandle(
+                connectionId,
+                point.id,
+                point.x,
+                point.y,
+                String.fromCharCode(65 + index) // A, B, C, etc.
+            );
+            
+            // Add entrance animation, especially for new points
+            const handle = document.querySelector(`[data-connection-id="${connectionId}"][data-point-id="${point.id}"]`);
+            if (handle) {
+                if (point.id === newPointId) {
+                    // Special animation for new control point
+                    handle.style.transform = `translate(${point.x}, ${point.y}) scale(0)`;
+                    handle.style.opacity = '0';
+                    
+                    // Animate in with bounce effect
+                    setTimeout(() => {
+                        handle.style.transition = 'all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                        handle.style.transform = `translate(${point.x}, ${point.y}) scale(1)`;
+                        handle.style.opacity = '1';
+                        
+                        // Extra pulse for new point
+                        setTimeout(() => {
+                            const circle = handle.querySelector('.control-point-circle');
+                            if (circle) {
+                                circle.style.transform = 'scale(1.2)';
+                                setTimeout(() => {
+                                    circle.style.transform = 'scale(1)';
+                                }, 200);
+                            }
+                        }, 300);
+                    }, 50);
+                } else {
+                    // Subtle fade-in for existing points
+                    handle.style.opacity = '0';
+                    handle.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => {
+                        handle.style.opacity = '1';
+                    }, index * 50); // Staggered appearance
+                }
+            }
+        });
     }
 
     removeControlPoint(connectionId, pointIndex) {
         const controlData = this.connectionControlPoints.get(connectionId);
         if (!controlData || pointIndex < 0 || pointIndex >= controlData.points.length) return;
         
-        // Remove the control point
+        // Get the point being removed for animation
+        const pointToRemove = controlData.points[pointIndex];
+        
+        // Find the corresponding handle element for smooth removal
+        const handleToRemove = document.querySelector(`[data-connection-id="${connectionId}"][data-point-id="${pointToRemove.id}"]`);
+        
+        if (handleToRemove) {
+            // Animate the removal
+            handleToRemove.style.transition = 'all 0.3s ease-out';
+            handleToRemove.style.transform = `translate(${pointToRemove.x}, ${pointToRemove.y}) scale(0)`;
+            handleToRemove.style.opacity = '0';
+            
+            // Remove after animation
+            setTimeout(() => {
+                if (handleToRemove.parentNode) {
+                    handleToRemove.remove();
+                }
+            }, 300);
+        }
+        
+        // Remove the control point from data
         controlData.points.splice(pointIndex, 1);
         
-        // Re-render the connection with updated control points
-        this.renderConnections();
+        // Smoothly update the connection curve
+        this.smoothUpdateConnection(connectionId);
         
-        // If control points are visible, update the display
+        // If control points are visible, update the display with animation
         if (controlData.visible) {
-            this.showControlPoints(connectionId);
+            setTimeout(() => {
+                this.showControlPoints(connectionId);
+            }, 150); // Show updated control points mid-animation
         }
         
         console.log(`Removed control point. Total: ${controlData.points.length}`);
         this.updateCurveTypeInfo(connectionId, controlData.points.length);
+    }
+
+    smoothUpdateConnection(connectionId) {
+        // Add a class to enable smooth transitions for the connection
+        const connectionPath = document.querySelector(`[data-connection-id="${connectionId}"]`);
+        if (connectionPath) {
+            connectionPath.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            
+            // Remove transition after animation
+            setTimeout(() => {
+                if (connectionPath.style) {
+                    connectionPath.style.transition = '';
+                }
+            }, 400);
+        }
+        
+        // Re-render the connection with smooth transition
+        this.renderConnections();
     }
 
     updateCurveTypeInfo(connectionId, numPoints) {
@@ -1363,7 +2193,9 @@ class MindMap {
     }
 
     createControlPointHandle(connectionId, pointId, x, y, label) {
-        console.log(`Creating control point handle at (${x}, ${y}) with label ${label}`);
+        console.log('🔧 createControlPointHandle called');
+        console.log('Parameters:', {connectionId, pointId, x, y, label});
+        console.log('Control layer exists:', !!this.controlLayer);
         
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         handle.setAttribute('class', 'control-point-handle');
@@ -1371,17 +2203,25 @@ class MindMap {
         handle.setAttribute('data-point-id', pointId);
         handle.setAttribute('transform', `translate(${x}, ${y})`);
         
+        // Create invisible larger hit area for easier selection
+        const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        hitArea.setAttribute('r', '20'); // Large invisible hit target
+        hitArea.setAttribute('fill', 'transparent');
+        hitArea.setAttribute('stroke', 'none');
+        hitArea.setAttribute('class', 'control-point-hit-area');
+        hitArea.style.cursor = 'move';
+
         // Control point circle - make it larger and more visible
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('r', '10'); // Increased from 8 for better interaction
+        circle.setAttribute('r', '8'); // Keep visual size reasonable
         circle.setAttribute('fill', '#ff6b35');
         circle.setAttribute('stroke', '#fff');
-        circle.setAttribute('stroke-width', '3');
+        circle.setAttribute('stroke-width', '2');
         circle.setAttribute('class', 'control-point-circle');
+        circle.style.pointerEvents = 'none'; // Let hit area handle events
         
         // Add hover effects
         circle.style.transition = 'all 0.2s ease';
-        circle.style.cursor = 'move';
         
         // Label text
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -1391,31 +2231,44 @@ class MindMap {
         text.setAttribute('fill', 'white');
         text.setAttribute('font-size', '10'); // Increased from 8
         text.setAttribute('font-weight', 'bold');
+        text.setAttribute('pointer-events', 'none'); // Text doesn't interfere with clicks
         text.textContent = label;
         
+        // Add elements in correct order (hit area first for proper event handling)
+        handle.appendChild(hitArea);
         handle.appendChild(circle);
         handle.appendChild(text);
         
-        // Add hover effects to the handle group
-        handle.addEventListener('mouseenter', () => {
-            circle.setAttribute('r', '12');
+        // Add hover effects to the hit area for better responsiveness
+        hitArea.addEventListener('mouseenter', () => {
+            circle.setAttribute('r', '10');
             circle.setAttribute('fill', '#ff8c00');
             circle.style.filter = 'drop-shadow(0 0 8px rgba(255, 107, 53, 0.6))';
+            circle.setAttribute('stroke-width', '3');
         });
         
-        handle.addEventListener('mouseleave', () => {
-            circle.setAttribute('r', '10');
+        hitArea.addEventListener('mouseleave', () => {
+            circle.setAttribute('r', '8');
             circle.setAttribute('fill', '#ff6b35');
             circle.style.filter = 'none';
+            circle.setAttribute('stroke-width', '2');
         });
         
         // Add to control layer (above everything else)
-        this.controlLayer.appendChild(handle);
-        
-        console.log('Control point handle created and added to canvas');
+        try {
+            this.controlLayer.appendChild(handle);
+            console.log('✅ Control point handle successfully added to control layer');
+            console.log('Control layer children count:', this.controlLayer.children.length);
+            console.log('Handle in DOM:', document.contains(handle));
+        } catch (error) {
+            console.error('❌ Failed to add handle to control layer:', error);
+        }
         
         // Add drag functionality
         this.addControlPointDragBehavior(handle, connectionId, pointId);
+        
+        // Add right-click context menu for deletion
+        this.addControlPointContextMenu(handle, connectionId, pointId);
         
         // TEMPORARY: Also add the handle to a global array for debugging
         if (!window.debugControlHandles) window.debugControlHandles = [];
@@ -1500,6 +2353,71 @@ class MindMap {
         console.log('Try clicking on the connection line!');
     }
 
+    // TEMPORARY: Test function to create multiple connections for comprehensive testing
+    createTestConnections() {
+        console.log('🧪 Creating test connections for comprehensive testing...');
+        
+        // Create test nodes if they don't exist
+        const testNodes = [
+            { id: 'test-node-1', x: 250, y: 150, text: 'Node A', radius: 40 },
+            { id: 'test-node-2', x: 550, y: 150, text: 'Node B', radius: 40 },
+            { id: 'test-node-3', x: 400, y: 300, text: 'Node C', radius: 40 },
+            { id: 'test-node-4', x: 250, y: 450, text: 'Node D', radius: 40 }
+        ];
+        
+        testNodes.forEach(nodeData => {
+            if (!this.nodes.find(n => n.id === nodeData.id)) {
+                // Add node properties for compatibility
+                const node = {
+                    ...nodeData,
+                    shape: { type: 'circle', width: 80, height: 80 },
+                    style: {
+                        fontFamily: 'Poppins', fontSize: 14, fontWeight: 400,
+                        textColor: '#F9FAFB', textAlign: 'center',
+                        backgroundColor: '#374151', borderColor: '#4B5563'
+                    }
+                };
+                this.nodes.push(node);
+                this.renderNode(node);
+            }
+        });
+        
+        // Wait for nodes to render, then create connections
+        setTimeout(() => {
+            if (this.connectionManager) {
+                const nodeA = this.nodes.find(n => n.text === 'Node A');
+                const nodeB = this.nodes.find(n => n.text === 'Node B');
+                const nodeC = this.nodes.find(n => n.text === 'Node C');
+                const nodeD = this.nodes.find(n => n.text === 'Node D');
+                
+                if (nodeA && nodeB && nodeC && nodeD) {
+                    // Create multiple test connections
+                    this.connectionManager.createConnection(nodeA, nodeB);
+                    this.connectionManager.createConnection(nodeB, nodeC);
+                    this.connectionManager.createConnection(nodeC, nodeD);
+                    this.connectionManager.createConnection(nodeD, nodeA);
+                    
+                    console.log('✅ Test connections created! Try:');
+                    console.log('🔥 INTERPOLATION POINTS (NEW):');
+                    console.log('  • Click connection lines to add interpolation points');
+                    console.log('  • Drag GREEN points to sculpt smooth curves');
+                    console.log('  • Double-click or right-click GREEN points to delete them');
+                    console.log('  • Shift+Click connections to toggle interpolation point visibility');
+                    console.log('  • Add multiple points for complex curve shapes');
+                    console.log('');
+                    console.log('🎛️ OTHER CONTROLS:');
+                    console.log('  • Ctrl+Click connections to delete entire connection');
+                    console.log('  • Each connection can have unlimited interpolation points');
+                    console.log('  • Curves use smooth Catmull-Rom spline interpolation');
+                } else {
+                    console.warn('⚠️ Some test nodes not found');
+                }
+            } else {
+                console.warn('⚠️ ConnectionManager not ready yet');
+            }
+        }, 200);
+    }
+
     addControlPointDragBehavior(handle, connectionId, pointId) {
         let isDragging = false;
         let dragStartPos = { x: 0, y: 0 };
@@ -1521,30 +2439,36 @@ class MindMap {
             }
         };
         
-        handle.addEventListener('mousedown', (e) => {
+        // Use pointer events for better cross-device support
+        hitArea.addEventListener('pointerdown', (e) => {
             e.stopPropagation();
             e.preventDefault();
             isDragging = true;
+            
+            // Capture pointer to ensure smooth dragging
+            hitArea.setPointerCapture(e.pointerId);
             
             // Store drag start position for smooth interaction
             dragStartPos.x = e.clientX;
             dragStartPos.y = e.clientY;
             
-            handle.style.cursor = 'grabbing';
+            // Visual feedback during drag - make cursor grabbing on the hit area
+            hitArea.style.cursor = 'grabbing';
             
             // Enhanced visual feedback during drag
             const circle = handle.querySelector('.control-point-circle');
             if (circle) {
-                circle.setAttribute('r', '15');
+                circle.setAttribute('r', '12');
                 circle.style.filter = 'drop-shadow(0 0 15px rgba(255, 107, 53, 1))';
                 circle.setAttribute('fill', '#ff8c00');
+                circle.setAttribute('stroke-width', '3');
             }
             
             // Add dragging class for additional CSS effects
             handle.classList.add('dragging');
         });
         
-        document.addEventListener('mousemove', (e) => {
+        hitArea.addEventListener('pointermove', (e) => {
             if (!isDragging) return;
             e.preventDefault();
             
@@ -1571,18 +2495,24 @@ class MindMap {
             }
         });
         
-        document.addEventListener('mouseup', (e) => {
+        hitArea.addEventListener('pointerup', (e) => {
             if (isDragging) {
                 isDragging = false;
-                handle.style.cursor = 'move';
+                
+                // Release pointer capture
+                hitArea.releasePointerCapture(e.pointerId);
+                
+                // Reset cursor
+                hitArea.style.cursor = 'move';
                 
                 // Reset visual feedback with smooth transition
                 const circle = handle.querySelector('.control-point-circle');
                 if (circle) {
                     circle.style.transition = 'all 0.3s ease';
-                    circle.setAttribute('r', '10');
+                    circle.setAttribute('r', '8');
                     circle.style.filter = 'none';
                     circle.setAttribute('fill', '#ff6b35');
+                    circle.setAttribute('stroke-width', '2');
                     
                     // Remove transition after animation
                     setTimeout(() => {
@@ -1610,6 +2540,299 @@ class MindMap {
         handle.addEventListener('dragstart', (e) => e.preventDefault());
         
         handle.style.cursor = 'move';
+    }
+
+    addControlPointContextMenu(handle, connectionId, pointId) {
+        // Add right-click context menu for control point deletion
+        handle.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Get control point data to determine context
+            const controlData = this.connectionControlPoints.get(connectionId);
+            if (!controlData) return;
+            
+            const point = controlData.points.find(p => p.id === pointId);
+            if (!point) return;
+            
+            // Show custom context menu
+            this.showControlPointContextMenu(e.clientX, e.clientY, connectionId, pointId, controlData.points.length);
+        });
+
+        // Add double-click for quick deletion
+        handle.addEventListener('dblclick', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Visual feedback for deletion
+            const transform = handle.getAttribute('transform');
+            const match = transform.match(/translate\(([^,]+),([^)]+)\)/);
+            if (match) {
+                const x = parseFloat(match[1]);
+                const y = parseFloat(match[2]);
+                this.showTemporaryFeedback('Control point deleted', x, y, '#ff4444');
+            }
+            
+            // Find point index for removal
+            const controlData = this.connectionControlPoints.get(connectionId);
+            if (controlData) {
+                const pointIndex = controlData.points.findIndex(p => p.id === pointId);
+                if (pointIndex >= 0) {
+                    this.removeControlPoint(connectionId, pointIndex);
+                }
+            }
+        });
+    }
+
+    showControlPointContextMenu(x, y, connectionId, pointId, totalPoints) {
+        // Remove any existing context menu
+        const existingMenu = document.querySelector('.control-point-context-menu');
+        if (existingMenu) {
+            existingMenu.remove();
+        }
+
+        // Create context menu
+        const menu = document.createElement('div');
+        menu.className = 'control-point-context-menu';
+        menu.style.position = 'fixed';
+        menu.style.left = x + 'px';
+        menu.style.top = y + 'px';
+        menu.style.background = 'var(--secondary-bg)';
+        menu.style.border = '1px solid var(--node-stroke)';
+        menu.style.borderRadius = '8px';
+        menu.style.padding = '8px 0';
+        menu.style.zIndex = '10000';
+        menu.style.minWidth = '180px';
+        menu.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.3)';
+        
+        // Delete control point option
+        const deleteOption = document.createElement('div');
+        deleteOption.className = 'context-menu-item';
+        deleteOption.innerHTML = '<i class="ri-delete-bin-line"></i> Delete Control Point';
+        deleteOption.style.padding = '8px 16px';
+        deleteOption.style.cursor = 'pointer';
+        deleteOption.style.color = 'var(--primary-text)';
+        deleteOption.style.fontSize = '14px';
+        deleteOption.style.display = 'flex';
+        deleteOption.style.alignItems = 'center';
+        deleteOption.style.gap = '8px';
+        
+        deleteOption.addEventListener('mouseenter', () => {
+            deleteOption.style.background = 'var(--error-color)';
+            deleteOption.style.color = 'white';
+        });
+        deleteOption.addEventListener('mouseleave', () => {
+            deleteOption.style.background = 'transparent';
+            deleteOption.style.color = 'var(--primary-text)';
+        });
+        
+        deleteOption.onclick = () => {
+            // Find point index for removal
+            const controlData = this.connectionControlPoints.get(connectionId);
+            if (controlData) {
+                const pointIndex = controlData.points.findIndex(p => p.id === pointId);
+                if (pointIndex >= 0) {
+                    this.removeControlPoint(connectionId, pointIndex);
+                }
+            }
+            menu.remove();
+        };
+
+        menu.appendChild(deleteOption);
+        
+        // Make straight line option (if there are multiple control points)
+        if (totalPoints > 0) {
+            const separator = document.createElement('div');
+            separator.style.height = '1px';
+            separator.style.background = 'var(--node-stroke)';
+            separator.style.margin = '4px 16px';
+            menu.appendChild(separator);
+            
+            const straightLineOption = document.createElement('div');
+            straightLineOption.className = 'context-menu-item';
+            straightLineOption.innerHTML = '<i class="ri-subtract-line"></i> Make Straight Line';
+            straightLineOption.style.padding = '8px 16px';
+            straightLineOption.style.cursor = 'pointer';
+            straightLineOption.style.color = 'var(--primary-text)';
+            straightLineOption.style.fontSize = '14px';
+            straightLineOption.style.display = 'flex';
+            straightLineOption.style.alignItems = 'center';
+            straightLineOption.style.gap = '8px';
+            
+            straightLineOption.addEventListener('mouseenter', () => {
+                straightLineOption.style.background = 'var(--accent-color)';
+                straightLineOption.style.color = 'white';
+            });
+            straightLineOption.addEventListener('mouseleave', () => {
+                straightLineOption.style.background = 'transparent';
+                straightLineOption.style.color = 'var(--primary-text)';
+            });
+            
+            straightLineOption.onclick = () => {
+                this.makeStraightLine(connectionId);
+                menu.remove();
+            };
+            
+            menu.appendChild(straightLineOption);
+        }
+        
+        document.body.appendChild(menu);
+        
+        // Remove menu when clicking elsewhere
+        setTimeout(() => {
+            const clickHandler = (e) => {
+                if (!menu.contains(e.target)) {
+                    menu.remove();
+                    document.removeEventListener('click', clickHandler);
+                }
+            };
+            document.addEventListener('click', clickHandler);
+        }, 0);
+    }
+
+    makeStraightLine(connectionId) {
+        const controlData = this.connectionControlPoints.get(connectionId);
+        if (!controlData) return;
+        
+        // Clear all control points to make it straight
+        controlData.points = [];
+        
+        // Re-render the connection
+        this.renderConnections();
+        
+        // Hide control points since there are none
+        this.hideAllControlPoints();
+        
+        // Show feedback
+        this.showTemporaryFeedback('Connection made straight', 0, 0, '#44ff44');
+        
+        console.log('Connection made straight:', connectionId);
+        this.updateCurveTypeInfo(connectionId, 0);
+    }
+
+    handleSimpleControlPointClick(event, connectionId) {
+        console.log('=== CONTROL POINT CLICK START ===');
+        console.log('Connection ID:', connectionId);
+        console.log('Event:', event);
+        
+        try {
+            // Get click position
+            const rect = this.canvas.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+            
+            console.log('Canvas rect:', rect);
+            console.log('Click position (canvas):', {clickX, clickY});
+            console.log('ViewBox:', this.viewBox);
+            
+            // Simple coordinate conversion - no viewBox scaling for now
+            const worldX = clickX;
+            const worldY = clickY;
+            
+            console.log('World coordinates:', {worldX, worldY});
+            
+            // Get or create control data
+            let controlData = this.connectionControlPoints.get(connectionId);
+            if (!controlData) {
+                console.log('No control data found, initializing...');
+                // Initialize simple control data
+                controlData = {
+                    points: [],
+                    visible: true
+                };
+                this.connectionControlPoints.set(connectionId, controlData);
+                console.log('Initialized control data:', controlData);
+            }
+            
+            console.log('Current control points:', controlData.points);
+            
+            // Check if clicking near existing control point to remove it
+            let clickedPointIndex = -1;
+            for (let i = 0; i < controlData.points.length; i++) {
+                const cp = controlData.points[i];
+                const distance = Math.sqrt(
+                    Math.pow(worldX - cp.x, 2) + Math.pow(worldY - cp.y, 2)
+                );
+                console.log(`Distance to control point ${i}:`, distance, 'Point at:', cp);
+                if (distance < 50) { // Very generous detection area
+                    clickedPointIndex = i;
+                    console.log('Found nearby control point to delete:', i);
+                    break;
+                }
+            }
+            
+            if (clickedPointIndex >= 0) {
+                // Remove control point
+                console.log('REMOVING control point at index:', clickedPointIndex);
+                const removedPoint = controlData.points.splice(clickedPointIndex, 1)[0];
+                console.log('Removed point:', removedPoint);
+                console.log('Remaining points:', controlData.points);
+                
+                // Show feedback
+                this.showTemporaryFeedback('Control point deleted', worldX, worldY, '#ff4444');
+                
+            } else {
+                // Add new control point
+                console.log('ADDING new control point at:', {worldX, worldY});
+                
+                // Generate simple ID
+                const newId = `cp_${Date.now()}`;
+                const newPoint = { id: newId, x: worldX, y: worldY };
+                
+                controlData.points.push(newPoint);
+                console.log('Added point:', newPoint);
+                console.log('Total points now:', controlData.points.length);
+                
+                // Show feedback
+                this.showTemporaryFeedback('Control point added', worldX, worldY, '#44ff44');
+            }
+            
+            // Always re-render
+            console.log('Re-rendering connections...');
+            this.renderConnections();
+            
+            // Show control points
+            if (controlData.points.length > 0) {
+                console.log('Showing control points...');
+                this.showControlPoints(connectionId);
+            } else {
+                console.log('No control points to show, hiding all...');
+                this.hideAllControlPoints();
+            }
+            
+        } catch (error) {
+            console.error('Error in handleSimpleControlPointClick:', error);
+            console.error('Stack trace:', error.stack);
+        }
+        
+        console.log('=== CONTROL POINT CLICK END ===');
+    }
+
+    handleControlPointClick(event, connectionId) {
+        if (!this.controlPointsManager) {
+            console.error('⚠️ ControlPointsManager not initialized');
+            return;
+        }
+        
+        // Get click position
+        const rect = this.canvas.getBoundingClientRect();
+        const clickX = event.clientX - rect.left;
+        const clickY = event.clientY - rect.top;
+        
+        // Convert to world coordinates
+        const worldX = this.viewBox.x + (clickX / rect.width) * this.viewBox.width;
+        const worldY = this.viewBox.y + (clickY / rect.height) * this.viewBox.height;
+        
+        console.log('🎯 Adding control point at:', {worldX, worldY});
+        
+        // Use the new control points manager
+        const success = this.controlPointsManager.addControlPoint(connectionId, worldX, worldY);
+        
+        if (success) {
+            this.showTemporaryFeedback('Control point added!', worldX, worldY, '#44ff44');
+        } else {
+            this.showTemporaryFeedback('Max 2 control points', worldX, worldY, '#ff4444');
+        }
     }
 
     showTemporaryFeedback(message, x, y, color = '#38BDF8') {
@@ -2185,6 +3408,12 @@ class MindMap {
 
 document.addEventListener('DOMContentLoaded', () => {
     const mindMap = new MindMap();
+
+    // TEMPORARY: Create test connections for comprehensive testing
+    setTimeout(() => {
+        console.log('🧪 Creating test connections for comprehensive testing...');
+        mindMap.createTestConnections();
+    }, 1500);
 
     tippy('[data-tippy-content]', {
         animation: 'scale-subtle',

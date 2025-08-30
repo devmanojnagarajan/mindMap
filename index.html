@@ -68,6 +68,134 @@
                 </div>
             </div>
 
+            <!-- Node Customization Panel -->
+            <div id="node-panel" class="panel" style="display: none;">
+                <div class="panel-header">
+                    <h3>Node Settings</h3>
+                    <button id="close-panel"><i class="ri-close-line"></i></button>
+                </div>
+                <div class="panel-content">
+                    <!-- Image Upload Section -->
+                    <div class="section">
+                        <h4>Image</h4>
+                        <div class="image-controls">
+                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
+                            <button id="upload-image-btn"><i class="ri-image-add-line"></i> Add Image</button>
+                            <div id="image-preview" style="display: none;">
+                                <img id="preview-img" src="" alt="Preview">
+                                <div class="image-options">
+                                    <label>Position:</label>
+                                    <select id="image-position">
+                                        <option value="before">Before Text</option>
+                                        <option value="after">After Text</option>
+                                    </select>
+                                    <button id="remove-image"><i class="ri-delete-bin-line"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Text Styling Section -->
+                    <div class="section">
+                        <h4>Text Style</h4>
+                        <div class="text-controls">
+                            <div class="control-row">
+                                <label>Font Family:</label>
+                                <select id="font-family">
+                                    <option value="Poppins">Poppins</option>
+                                    <option value="Arial">Arial</option>
+                                    <option value="Georgia">Georgia</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Courier New">Courier New</option>
+                                </select>
+                            </div>
+                            <div class="control-row">
+                                <label>Font Size:</label>
+                                <input type="range" id="font-size" min="8" max="32" value="14">
+                                <span id="font-size-value">14px</span>
+                            </div>
+                            <div class="control-row">
+                                <label>Font Weight:</label>
+                                <select id="font-weight">
+                                    <option value="300">Light</option>
+                                    <option value="400">Normal</option>
+                                    <option value="600">Bold</option>
+                                </select>
+                            </div>
+                            <div class="control-row">
+                                <label>Text Color:</label>
+                                <input type="color" id="text-color" value="#F9FAFB">
+                            </div>
+                            <div class="control-row">
+                                <label>Alignment:</label>
+                                <select id="text-align">
+                                    <option value="left">Left</option>
+                                    <option value="center">Center</option>
+                                    <option value="right">Right</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Node Shape Section -->
+                    <div class="section">
+                        <h4>Node Shape</h4>
+                        <div class="shape-controls">
+                            <div class="control-row">
+                                <label>Shape:</label>
+                                <select id="node-shape">
+                                    <option value="circle">Circle</option>
+                                    <option value="rectangle">Rectangle</option>
+                                    <option value="rounded-rectangle">Rounded Rectangle</option>
+                                    <option value="triangle">Triangle</option>
+                                    <option value="pentagon">Pentagon</option>
+                                    <option value="hexagon">Hexagon</option>
+                                    <option value="diamond">Diamond</option>
+                                </select>
+                            </div>
+                            <div class="control-row" id="size-controls">
+                                <label>Width:</label>
+                                <input type="range" id="node-width" min="60" max="200" value="80">
+                                <span id="node-width-value">80px</span>
+                            </div>
+                            <div class="control-row">
+                                <label>Height:</label>
+                                <input type="range" id="node-height" min="40" max="150" value="80">
+                                <span id="node-height-value">80px</span>
+                            </div>
+                            <div class="control-row" id="corner-radius-control" style="display: none;">
+                                <label>Corner Radius:</label>
+                                <input type="range" id="corner-radius" min="0" max="30" value="15">
+                                <span id="corner-radius-value">15px</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Node Color Section -->
+                    <div class="section">
+                        <h4>Node Color</h4>
+                        <div class="color-controls">
+                            <label>Background:</label>
+                            <input type="color" id="node-bg-color" value="#374151">
+                            <label>Border:</label>
+                            <input type="color" id="node-border-color" value="#4B5563">
+                        </div>
+                    </div>
+                    
+                    <!-- Share Section -->
+                    <div class="section">
+                        <h4>Share</h4>
+                        <div class="share-controls">
+                            <button id="export-image"><i class="ri-image-line"></i> Export as Image</button>
+                            <button id="copy-share-link"><i class="ri-share-line"></i> Copy Share Link</button>
+                            <button id="export-json"><i class="ri-file-download-line"></i> Export JSON</button>
+                            <input type="file" id="import-json" accept=".json" style="display: none;">
+                            <button id="import-json-btn"><i class="ri-file-upload-line"></i> Import JSON</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="minimap-container">
                 <div id="minimap-header">Navigation</div>
                 <svg id="minimap" width="200" height="150">
@@ -75,9 +203,29 @@
                     <rect id="viewport-indicator" width="20" height="20" fill="none" stroke="#4CAF50" stroke-width="2" opacity="0.7"/>
                 </svg>
             </div>
+
+            <!-- Control Point Instructions -->
+            <div id="control-point-help" class="help-tooltip">
+                <div class="help-header">
+                    <h4>Control Points Help</h4>
+                    <button id="help-close">×</button>
+                </div>
+                <div class="help-content">
+                    <p><strong>To curve connections:</strong></p>
+                    <ul>
+                        <li><strong>Click</strong> on a connection line to add control points</li>
+                        <li><strong>Click</strong> near a control point to delete it</li>
+                        <li><strong>Right-click</strong> control point for options</li>
+                        <li><strong>Double-click</strong> control point to delete</li>
+                        <li><strong>Ctrl+Click</strong> connection to delete it</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
     
+    <script src="node-manager.js"></script>
+    <script src="connection-manager.js"></script>
     <script src="script.js"></script>
     <script src="auth.js"></script>
 </body>

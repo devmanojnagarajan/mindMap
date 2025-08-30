@@ -1,0 +1,1086 @@
+/**
+ * Node Manager Module for Mind Map
+ * Handles all node-related functionality including:
+ * - Node creation, deletion, and updates
+ * - Visual rendering with shapes, images, and styling
+ * - Interactive behaviors (drag, select, edit)
+ * - Node customization and appearance management
+ * - Clipboard operations and context menus
+ */
+
+class NodeManager {
+    constructor(mindMap) {
+        this.mindMap = mindMap;
+        this.canvas = mindMap.canvas;
+        this.nodeLayer = mindMap.nodeLayer;
+        this.viewBox = mindMap.viewBox;
+        
+        // Node storage and management
+        this.nodes = new Map(); // id -> node data
+        this.nodeIdCounter = 1;
+        this.selectedNodes = new Set();
+        this.selectedNode = null;
+        
+        // Interaction state
+        this.isDragging = false;
+        this.dragTarget = null;
+        this.dragStartPos = { x: 0, y: 0 };
+        this.dragOffset = { x: 0, y: 0 };
+        
+        // Clipboard for copy/paste operations
+        this.clipboard = [];
+        
+        // Node defaults
+        this.defaultNodeStyle = {
+            fontFamily: 'Poppins',
+            fontSize: 14,
+            fontWeight: 400,
+            textColor: '#F9FAFB',
+            textAlign: 'center',
+            backgroundColor: '#374151',
+            borderColor: '#4B5563'
+        };
+        
+        this.defaultNodeShape = {
+            type: 'circle',
+            width: 80,
+            height: 80,
+            cornerRadius: 15
+        };
+        
+        console.log('🔵 NodeManager initialized');
+        this.setupEventListeners();
+    }
+
+    /**
+     * Setup global event listeners for node interactions
+     */
+    setupEventListeners() {
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Delete' && this.selectedNodes.size > 0) {
+                this.deleteSelectedNodes();
+            }
+            if (e.key === 'Escape') {
+                this.deselectAllNodes();
+            }
+            if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'c') {
+                    e.preventDefault();
+                    this.copySelectedNodes();
+                }
+                if (e.key === 'v') {
+                    e.preventDefault();
+                    this.pasteNodes();
+                }
+                if (e.key === 'a') {
+                    e.preventDefault();
+                    this.selectAllNodes();
+                }
+            }
+        });
+    }
+
+    /**
+     * Create a new node
+     */
+    createNode(x, y, text = 'New Node', options = {}) {
+        const nodeId = `node_${this.nodeIdCounter++}`;
+        
+        const node = {
+            id: nodeId,
+            x: x,
+            y: y,
+            text: text,
+            radius: options.radius || 40,
+            image: options.image || null,
+            imagePosition: options.imagePosition || 'before',
+            shape: { ...this.defaultNodeShape, ...options.shape },
+            style: { ...this.defaultNodeStyle, ...options.style },
+            metadata: options.metadata || {},
+            created: Date.now(),
+            modified: Date.now()
+        };
+        
+        this.nodes.set(nodeId, node);
+        
+        // Add to mindMap nodes array for compatibility
+        this.mindMap.nodes.push(node);
+        
+        // Update minimap bounds
+        this.updateMinimapBounds(x, y);
+        
+        // Render the node
+        this.renderNode(node);
+        
+        console.log('✅ Node created:', nodeId);
+        return node;
+    }
+
+    /**
+     * Add node with automatic positioning and connection logic
+     */
+    addNode(x = null, y = null, text = 'New Node') {
+        // Determine position if not specified
+        if (x === null || y === null) {
+            if (this.selectedNode) {
+                const parentNode = this.selectedNode;
+                const angle = Math.random() * 2 * Math.PI;
+                const distance = 150;
+                x = parentNode.x + Math.cos(angle) * distance;
+                y = parentNode.y + Math.sin(angle) * distance;
+            } else {
+                x = Math.random() * (this.viewBox.width - 200) + 100;
+                y = Math.random() * (this.viewBox.height - 200) + 100;
+            }
+        }
+        
+        // Create node
+        const newNode = this.createNode(x, y, text);
+        
+        // Create connection to parent if there was a selected node
+        if (this.selectedNode && this.mindMap.connectionManager) {
+            this.mindMap.connectionManager.createConnection(this.selectedNode, newNode);
+        }
+        
+        // Select the new node
+        this.selectNode(newNode);
+        
+        return newNode;
+    }
+
+    /**
+     * Delete a node and cleanup connections
+     */
+    deleteNode(nodeId) {
+        const node = this.nodes.get(nodeId);
+        if (!node) return false;
+        
+        // Remove from visual layer
+        const nodeElement = this.nodeLayer.querySelector(`[data-node-id="${nodeId}"]`);
+        if (nodeElement) {
+            // Animate out
+            nodeElement.style.transition = 'all 0.3s ease-out';
+            nodeElement.style.transform = nodeElement.getAttribute('transform') + ' scale(0)';
+            nodeElement.style.opacity = '0';
+            
+            setTimeout(() => {
+                if (nodeElement.parentNode) {
+                    nodeElement.remove();
+                }
+            }, 300);
+        }
+        
+        // Remove from data structures
+        this.nodes.delete(nodeId);
+        this.selectedNodes.delete(nodeId);
+        
+        // Remove from mindMap nodes array
+        const index = this.mindMap.nodes.findIndex(n => n.id === nodeId);
+        if (index !== -1) {
+            this.mindMap.nodes.splice(index, 1);
+        }
+        
+        // Clear selection if this was the selected node
+        if (this.selectedNode && this.selectedNode.id === nodeId) {
+            this.selectedNode = null;
+        }
+        
+        // Delete related connections
+        if (this.mindMap.connectionManager) {
+            this.deleteNodeConnections(nodeId);
+        }
+        
+        console.log('🗑️ Node deleted:', nodeId);
+        return true;
+    }
+
+    /**
+     * Delete all connections related to a node
+     */
+    deleteNodeConnections(nodeId) {
+        const connectionsToDelete = [];
+        
+        for (const [connectionId, connection] of this.mindMap.connectionManager.connections) {
+            if (connection.from === nodeId || connection.to === nodeId) {
+                connectionsToDelete.push(connectionId);
+            }
+        }
+        
+        connectionsToDelete.forEach(connectionId => {
+            this.mindMap.connectionManager.deleteConnection(connectionId);
+        });
+    }
+
+    /**
+     * Update node properties
+     */
+    updateNode(nodeId, updates) {
+        const node = this.nodes.get(nodeId);
+        if (!node) return false;
+        
+        // Apply updates
+        Object.assign(node, updates);
+        node.modified = Date.now();
+        
+        // Update in mindMap array
+        const mindMapNode = this.mindMap.nodes.find(n => n.id === nodeId);
+        if (mindMapNode) {
+            Object.assign(mindMapNode, updates);
+        }
+        
+        // Re-render node
+        this.renderNode(node, true);
+        
+        // Update connections if position changed
+        if (updates.x !== undefined || updates.y !== undefined) {
+            if (this.mindMap.connectionManager) {
+                this.mindMap.connectionManager.renderAllConnections();
+            }
+        }
+        
+        console.log('📝 Node updated:', nodeId);
+        return true;
+    }
+
+    /**
+     * Render a node with all its visual elements
+     */
+    renderNode(node, isUpdate = false) {
+        // Remove existing node element if updating
+        if (isUpdate) {
+            const existing = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+            if (existing) existing.remove();
+        }
+        
+        // Update minimap bounds
+        this.updateMinimapBounds(node.x, node.y);
+        
+        // Create node group
+        const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        nodeGroup.setAttribute('class', 'node-group');
+        nodeGroup.setAttribute('data-node-id', node.id);
+        nodeGroup.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+        
+        // Create node shape
+        const shapeElement = this.createShapeElement(node);
+        nodeGroup.appendChild(shapeElement);
+        
+        // Add image if present
+        if (node.image) {
+            const imageElement = this.createImageElement(node);
+            if (imageElement) {
+                nodeGroup.appendChild(imageElement);
+            }
+        }
+        
+        // Add text
+        const textElement = this.createTextElement(node);
+        nodeGroup.appendChild(textElement);
+        
+        // Add interaction behaviors
+        this.addNodeInteractions(nodeGroup, node);
+        
+        // Add to layer
+        this.nodeLayer.appendChild(nodeGroup);
+        
+        // Animate in if new node
+        if (!isUpdate) {
+            this.animateNodeIn(nodeGroup);
+        }
+        
+        console.log('🎨 Node rendered:', node.id);
+        return nodeGroup;
+    }
+
+    /**
+     * Create shape element based on node shape type
+     */
+    createShapeElement(node) {
+        const shape = node.shape;
+        const style = node.style;
+        
+        let shapeElement;
+        
+        switch (shape.type) {
+            case 'rectangle':
+                shapeElement = this.createRectangleShape(shape, style);
+                break;
+            case 'rounded-rectangle':
+                shapeElement = this.createRoundedRectangleShape(shape, style);
+                break;
+            case 'triangle':
+                shapeElement = this.createTriangleShape(shape, style);
+                break;
+            case 'diamond':
+                shapeElement = this.createDiamondShape(shape, style);
+                break;
+            case 'hexagon':
+                shapeElement = this.createHexagonShape(shape, style);
+                break;
+            case 'pentagon':
+                shapeElement = this.createPentagonShape(shape, style);
+                break;
+            default: // circle
+                shapeElement = this.createCircleShape(shape, style);
+        }
+        
+        // Apply common styling
+        shapeElement.setAttribute('fill', style.backgroundColor);
+        shapeElement.setAttribute('stroke', style.borderColor);
+        shapeElement.setAttribute('stroke-width', '2');
+        shapeElement.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))';
+        
+        return shapeElement;
+    }
+
+    /**
+     * Create circle shape
+     */
+    createCircleShape(shape, style) {
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('r', Math.max(shape.width, shape.height) / 2);
+        return circle;
+    }
+
+    /**
+     * Create rectangle shape
+     */
+    createRectangleShape(shape, style) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', -shape.width / 2);
+        rect.setAttribute('y', -shape.height / 2);
+        rect.setAttribute('width', shape.width);
+        rect.setAttribute('height', shape.height);
+        return rect;
+    }
+
+    /**
+     * Create rounded rectangle shape
+     */
+    createRoundedRectangleShape(shape, style) {
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', -shape.width / 2);
+        rect.setAttribute('y', -shape.height / 2);
+        rect.setAttribute('width', shape.width);
+        rect.setAttribute('height', shape.height);
+        rect.setAttribute('rx', shape.cornerRadius || 10);
+        rect.setAttribute('ry', shape.cornerRadius || 10);
+        return rect;
+    }
+
+    /**
+     * Create triangle shape
+     */
+    createTriangleShape(shape, style) {
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        const w = shape.width / 2;
+        const h = shape.height / 2;
+        polygon.setAttribute('points', `0,${-h} ${w},${h} ${-w},${h}`);
+        return polygon;
+    }
+
+    /**
+     * Create diamond shape
+     */
+    createDiamondShape(shape, style) {
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        const w = shape.width / 2;
+        const h = shape.height / 2;
+        polygon.setAttribute('points', `0,${-h} ${w},0 0,${h} ${-w},0`);
+        return polygon;
+    }
+
+    /**
+     * Create hexagon shape
+     */
+    createHexagonShape(shape, style) {
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        const w = shape.width / 2;
+        const h = shape.height / 2;
+        const points = [];
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3;
+            const x = w * Math.cos(angle);
+            const y = h * Math.sin(angle);
+            points.push(`${x},${y}`);
+        }
+        polygon.setAttribute('points', points.join(' '));
+        return polygon;
+    }
+
+    /**
+     * Create pentagon shape
+     */
+    createPentagonShape(shape, style) {
+        const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        const w = shape.width / 2;
+        const h = shape.height / 2;
+        const points = [];
+        for (let i = 0; i < 5; i++) {
+            const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
+            const x = w * Math.cos(angle);
+            const y = h * Math.sin(angle);
+            points.push(`${x},${y}`);
+        }
+        polygon.setAttribute('points', points.join(' '));
+        return polygon;
+    }
+
+    /**
+     * Create text element for node
+     */
+    createTextElement(node) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('class', 'node-text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.setAttribute('font-family', node.style.fontFamily);
+        text.setAttribute('font-size', node.style.fontSize);
+        text.setAttribute('font-weight', node.style.fontWeight);
+        text.setAttribute('fill', node.style.textColor);
+        text.style.pointerEvents = 'none';
+        text.style.userSelect = 'none';
+        
+        // Handle multi-line text
+        const lines = node.text.split('\n');
+        if (lines.length === 1) {
+            text.textContent = node.text;
+        } else {
+            lines.forEach((line, index) => {
+                const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                tspan.setAttribute('x', '0');
+                tspan.setAttribute('dy', index === 0 ? '0' : '1.2em');
+                tspan.textContent = line;
+                text.appendChild(tspan);
+            });
+        }
+        
+        return text;
+    }
+
+    /**
+     * Create image element for node
+     */
+    createImageElement(node) {
+        if (!node.image) return null;
+        
+        const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+        image.setAttribute('class', 'node-image');
+        
+        // Position image based on imagePosition
+        const imageSize = 30;
+        let x, y;
+        
+        switch (node.imagePosition) {
+            case 'before':
+                x = -imageSize / 2;
+                y = -node.shape.height / 2 - imageSize - 5;
+                break;
+            case 'after':
+                x = -imageSize / 2;
+                y = node.shape.height / 2 + 5;
+                break;
+            default:
+                x = -imageSize / 2;
+                y = -imageSize / 2;
+        }
+        
+        image.setAttribute('x', x);
+        image.setAttribute('y', y);
+        image.setAttribute('width', imageSize);
+        image.setAttribute('height', imageSize);
+        image.setAttribute('href', node.image);
+        image.style.pointerEvents = 'none';
+        
+        return image;
+    }
+
+    /**
+     * Add interaction behaviors to node
+     */
+    addNodeInteractions(nodeGroup, node) {
+        // Mouse events for dragging and selection
+        nodeGroup.addEventListener('pointerdown', (e) => this.handleNodePointerDown(e, node));
+        nodeGroup.addEventListener('pointermove', (e) => this.handleNodePointerMove(e, node));
+        nodeGroup.addEventListener('pointerup', (e) => this.handleNodePointerUp(e, node));
+        
+        // Double-click for editing
+        nodeGroup.addEventListener('dblclick', (e) => this.startNodeEditing(node));
+        
+        // Context menu
+        nodeGroup.addEventListener('contextmenu', (e) => this.showNodeContextMenu(e, node));
+        
+        // Hover effects
+        this.addNodeHoverEffects(nodeGroup, node);
+        
+        // Make interactive
+        nodeGroup.style.cursor = 'move';
+        nodeGroup.style.pointerEvents = 'all';
+    }
+
+    /**
+     * Handle node pointer down (start drag or select)
+     */
+    handleNodePointerDown(e, node) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        this.isDragging = true;
+        this.dragTarget = node;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        this.dragStartPos.x = e.clientX - rect.left;
+        this.dragStartPos.y = e.clientY - rect.top;
+        
+        // Calculate drag offset
+        const worldMouseX = this.viewBox.x + (this.dragStartPos.x / rect.width) * this.viewBox.width;
+        const worldMouseY = this.viewBox.y + (this.dragStartPos.y / rect.height) * this.viewBox.height;
+        
+        this.dragOffset.x = worldMouseX - node.x;
+        this.dragOffset.y = worldMouseY - node.y;
+        
+        // Handle selection
+        if (e.ctrlKey || e.metaKey) {
+            this.toggleNodeSelection(node);
+        } else if (!this.selectedNodes.has(node.id)) {
+            this.selectNode(node);
+        }
+        
+        // Capture pointer for smooth dragging
+        e.target.closest('.node-group').setPointerCapture(e.pointerId);
+        
+        console.log('🖱️ Node drag started:', node.id);
+    }
+
+    /**
+     * Handle node pointer move (drag)
+     */
+    handleNodePointerMove(e, node) {
+        if (!this.isDragging || !this.dragTarget) return;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Convert to world coordinates
+        const worldMouseX = this.viewBox.x + (mouseX / rect.width) * this.viewBox.width;
+        const worldMouseY = this.viewBox.y + (mouseY / rect.height) * this.viewBox.height;
+        
+        // Calculate new position
+        const newX = worldMouseX - this.dragOffset.x;
+        const newY = worldMouseY - this.dragOffset.y;
+        
+        // Update all selected nodes if multiple selection
+        if (this.selectedNodes.size > 1 && this.selectedNodes.has(node.id)) {
+            const deltaX = newX - node.x;
+            const deltaY = newY - node.y;
+            
+            this.selectedNodes.forEach(nodeId => {
+                const selectedNode = this.nodes.get(nodeId);
+                if (selectedNode) {
+                    this.updateNodePosition(selectedNode, selectedNode.x + deltaX, selectedNode.y + deltaY);
+                }
+            });
+        } else {
+            // Update single node
+            this.updateNodePosition(node, newX, newY);
+        }
+    }
+
+    /**
+     * Handle node pointer up (end drag)
+     */
+    handleNodePointerUp(e, node) {
+        if (!this.isDragging) return;
+        
+        this.isDragging = false;
+        this.dragTarget = null;
+        
+        // Release pointer capture
+        const nodeGroup = e.target.closest('.node-group');
+        if (nodeGroup) {
+            nodeGroup.releasePointerCapture(e.pointerId);
+        }
+        
+        // Update connections after drag
+        if (this.mindMap.connectionManager) {
+            this.mindMap.connectionManager.renderAllConnections();
+        }
+        
+        console.log('🖱️ Node drag ended:', node.id);
+    }
+
+    /**
+     * Update node position
+     */
+    updateNodePosition(node, x, y) {
+        node.x = x;
+        node.y = y;
+        node.modified = Date.now();
+        
+        // Update visual position
+        const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+        if (nodeGroup) {
+            nodeGroup.setAttribute('transform', `translate(${x}, ${y})`);
+        }
+        
+        // Update minimap bounds
+        this.updateMinimapBounds(x, y);
+    }
+
+    /**
+     * Add hover effects to node
+     */
+    addNodeHoverEffects(nodeGroup, node) {
+        nodeGroup.addEventListener('mouseenter', () => {
+            if (!this.isDragging) {
+                const shape = nodeGroup.querySelector('circle, rect, polygon');
+                if (shape) {
+                    shape.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))';
+                    shape.style.transform = 'scale(1.05)';
+                    shape.style.transition = 'all 0.2s ease';
+                }
+            }
+        });
+        
+        nodeGroup.addEventListener('mouseleave', () => {
+            if (!this.isDragging) {
+                const shape = nodeGroup.querySelector('circle, rect, polygon');
+                if (shape) {
+                    shape.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))';
+                    shape.style.transform = 'scale(1)';
+                }
+            }
+        });
+    }
+
+    /**
+     * Animate node appearance
+     */
+    animateNodeIn(nodeGroup) {
+        nodeGroup.style.opacity = '0';
+        nodeGroup.style.transform = nodeGroup.getAttribute('transform') + ' scale(0)';
+        nodeGroup.style.transition = 'all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        
+        requestAnimationFrame(() => {
+            nodeGroup.style.opacity = '1';
+            nodeGroup.style.transform = nodeGroup.getAttribute('transform') + ' scale(1)';
+            
+            setTimeout(() => {
+                nodeGroup.style.transition = '';
+            }, 400);
+        });
+    }
+
+    /**
+     * Start inline text editing for node
+     */
+    startNodeEditing(node) {
+        const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+        if (!nodeGroup) return;
+        
+        // Create input element
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = node.text;
+        input.className = 'node-input';
+        input.style.position = 'absolute';
+        input.style.zIndex = '1000';
+        input.style.background = node.style.backgroundColor;
+        input.style.color = node.style.textColor;
+        input.style.border = `2px solid ${node.style.borderColor}`;
+        input.style.borderRadius = '4px';
+        input.style.padding = '4px 8px';
+        input.style.fontSize = node.style.fontSize + 'px';
+        input.style.fontFamily = node.style.fontFamily;
+        input.style.textAlign = node.style.textAlign;
+        
+        // Position input over node
+        const rect = this.canvas.getBoundingClientRect();
+        const canvasX = rect.left + (node.x - this.viewBox.x) * rect.width / this.viewBox.width;
+        const canvasY = rect.top + (node.y - this.viewBox.y) * rect.height / this.viewBox.height;
+        
+        input.style.left = (canvasX - 60) + 'px';
+        input.style.top = (canvasY - 10) + 'px';
+        input.style.width = '120px';
+        
+        document.body.appendChild(input);
+        input.focus();
+        input.select();
+        
+        // Handle input completion
+        const completeEditing = () => {
+            const newText = input.value.trim() || 'New Node';
+            this.updateNode(node.id, { text: newText });
+            input.remove();
+        };
+        
+        input.addEventListener('blur', completeEditing);
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                completeEditing();
+            } else if (e.key === 'Escape') {
+                input.remove();
+            }
+        });
+    }
+
+    /**
+     * Select a node
+     */
+    selectNode(node, multiSelect = false) {
+        if (!multiSelect) {
+            this.deselectAllNodes();
+        }
+        
+        this.selectedNodes.add(node.id);
+        this.selectedNode = node;
+        this.highlightNode(node);
+        
+        console.log('🎯 Node selected:', node.id);
+    }
+
+    /**
+     * Toggle node selection
+     */
+    toggleNodeSelection(node) {
+        if (this.selectedNodes.has(node.id)) {
+            this.selectedNodes.delete(node.id);
+            this.unhighlightNode(node);
+            
+            // Update selected node reference
+            if (this.selectedNode && this.selectedNode.id === node.id) {
+                this.selectedNode = this.selectedNodes.size > 0 
+                    ? this.nodes.get([...this.selectedNodes][0])
+                    : null;
+            }
+        } else {
+            this.selectedNodes.add(node.id);
+            this.selectedNode = node;
+            this.highlightNode(node);
+        }
+    }
+
+    /**
+     * Deselect all nodes
+     */
+    deselectAllNodes() {
+        this.selectedNodes.forEach(nodeId => {
+            const node = this.nodes.get(nodeId);
+            if (node) this.unhighlightNode(node);
+        });
+        
+        this.selectedNodes.clear();
+        this.selectedNode = null;
+        
+        console.log('🔄 All nodes deselected');
+    }
+
+    /**
+     * Select all nodes
+     */
+    selectAllNodes() {
+        this.selectedNodes.clear();
+        
+        for (const node of this.nodes.values()) {
+            this.selectedNodes.add(node.id);
+            this.highlightNode(node);
+        }
+        
+        if (this.nodes.size > 0) {
+            this.selectedNode = [...this.nodes.values()][0];
+        }
+        
+        console.log(`🎯 All nodes selected: ${this.selectedNodes.size}`);
+    }
+
+    /**
+     * Highlight selected node
+     */
+    highlightNode(node, highlightType = 'selected') {
+        const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+        if (!nodeGroup) return;
+        
+        const shape = nodeGroup.querySelector('circle, rect, polygon');
+        if (!shape) return;
+        
+        switch (highlightType) {
+            case 'selected':
+                shape.setAttribute('stroke', '#F59E0B');
+                shape.setAttribute('stroke-width', '3');
+                shape.style.filter = 'drop-shadow(0 0 8px rgba(245, 158, 11, 0.5))';
+                break;
+            case 'connecting':
+                shape.setAttribute('stroke', '#10B981');
+                shape.setAttribute('stroke-width', '3');
+                shape.style.filter = 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.5))';
+                break;
+            case 'multi-selected':
+                shape.setAttribute('stroke', '#8B5CF6');
+                shape.setAttribute('stroke-width', '3');
+                shape.style.filter = 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.5))';
+                break;
+        }
+    }
+
+    /**
+     * Remove highlighting from node
+     */
+    unhighlightNode(node) {
+        const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+        if (!nodeGroup) return;
+        
+        const shape = nodeGroup.querySelector('circle, rect, polygon');
+        if (!shape) return;
+        
+        shape.setAttribute('stroke', node.style.borderColor);
+        shape.setAttribute('stroke-width', '2');
+        shape.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))';
+    }
+
+    /**
+     * Clear all selections
+     */
+    clearSelection() {
+        // Clear multi-selection
+        this.selectedNodes.forEach(nodeId => {
+            const node = this.nodes.get(nodeId);
+            if (node) this.unhighlightNode(node);
+        });
+        this.selectedNodes.clear();
+        
+        // Clear single selection
+        if (this.selectedNode) {
+            this.unhighlightNode(this.selectedNode);
+            this.selectedNode = null;
+        }
+        
+        // Clear connection start (handled by main script)
+        if (this.mindMap.connectionStart) {
+            this.unhighlightNode(this.mindMap.connectionStart);
+            this.mindMap.connectionStart = null;
+        }
+        
+        console.log('🔄 All selections cleared');
+    }
+
+    /**
+     * Delete selected nodes
+     */
+    deleteSelectedNodes() {
+        const nodeIds = [...this.selectedNodes];
+        
+        nodeIds.forEach(nodeId => {
+            this.deleteNode(nodeId);
+        });
+        
+        this.selectedNodes.clear();
+        this.selectedNode = null;
+        
+        console.log(`🗑️ Deleted ${nodeIds.length} nodes`);
+    }
+
+    /**
+     * Copy selected nodes to clipboard
+     */
+    copySelectedNodes() {
+        this.clipboard = [];
+        
+        this.selectedNodes.forEach(nodeId => {
+            const node = this.nodes.get(nodeId);
+            if (node) {
+                this.clipboard.push({ ...node });
+            }
+        });
+        
+        console.log(`📋 Copied ${this.clipboard.length} nodes`);
+    }
+
+    /**
+     * Paste nodes from clipboard
+     */
+    pasteNodes(x = null, y = null) {
+        if (this.clipboard.length === 0) return;
+        
+        // Calculate paste position
+        const pasteX = x !== null ? x : (this.selectedNode ? this.selectedNode.x + 100 : 400);
+        const pasteY = y !== null ? y : (this.selectedNode ? this.selectedNode.y + 50 : 300);
+        
+        // Clear current selection
+        this.deselectAllNodes();
+        
+        // Paste nodes
+        this.clipboard.forEach((nodeData, index) => {
+            const offsetX = pasteX + (index * 20);
+            const offsetY = pasteY + (index * 20);
+            
+            const pastedNode = this.createNode(offsetX, offsetY, nodeData.text, {
+                shape: { ...nodeData.shape },
+                style: { ...nodeData.style },
+                image: nodeData.image,
+                imagePosition: nodeData.imagePosition
+            });
+            
+            this.selectNode(pastedNode, true);
+        });
+        
+        console.log(`📋 Pasted ${this.clipboard.length} nodes`);
+    }
+
+    /**
+     * Show context menu for node
+     */
+    showNodeContextMenu(event, node) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        // Hide existing context menu
+        this.hideContextMenu();
+        
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.left = event.clientX + 'px';
+        menu.style.top = event.clientY + 'px';
+        
+        const menuItems = [
+            { text: '✏️ Edit Text', action: () => this.startNodeEditing(node) },
+            { text: '🎨 Customize', action: () => this.openNodeCustomization(node) },
+            { text: '📋 Copy', action: () => { this.selectNode(node); this.copySelectedNodes(); } },
+            { text: '📄 Paste', action: () => this.pasteNodes(node.x + 50, node.y + 50) },
+            { text: '🗑️ Delete', action: () => this.deleteNode(node.id) }
+        ];
+        
+        menuItems.forEach(item => {
+            const menuItem = document.createElement('button');
+            menuItem.className = 'context-menu-item';
+            menuItem.textContent = item.text;
+            menuItem.onclick = () => {
+                item.action();
+                this.hideContextMenu();
+            };
+            menu.appendChild(menuItem);
+        });
+        
+        document.body.appendChild(menu);
+        
+        // Remove menu on click outside
+        setTimeout(() => {
+            document.addEventListener('click', () => this.hideContextMenu(), { once: true });
+        }, 10);
+    }
+
+    /**
+     * Hide context menu
+     */
+    hideContextMenu() {
+        const menu = document.querySelector('.context-menu');
+        if (menu) {
+            menu.remove();
+        }
+    }
+
+    /**
+     * Open node customization panel
+     */
+    openNodeCustomization(node) {
+        this.selectNode(node);
+        this.mindMap.showNodePanel();
+        
+        // Populate panel with current node data
+        if (this.mindMap.populateNodePanel) {
+            this.mindMap.populateNodePanel(node);
+        }
+    }
+
+    /**
+     * Update minimap bounds
+     */
+    updateMinimapBounds(x, y) {
+        if (!this.mindMap.minimapBounds) return;
+        
+        const padding = 200;
+        this.mindMap.minimapBounds.x = Math.min(this.mindMap.minimapBounds.x, x - padding);
+        this.mindMap.minimapBounds.y = Math.min(this.mindMap.minimapBounds.y, y - padding);
+        this.mindMap.minimapBounds.width = Math.max(this.mindMap.minimapBounds.width, (x + padding) - this.mindMap.minimapBounds.x);
+        this.mindMap.minimapBounds.height = Math.max(this.mindMap.minimapBounds.height, (y + padding) - this.mindMap.minimapBounds.y);
+    }
+
+    /**
+     * Render all nodes
+     */
+    renderAllNodes() {
+        this.nodeLayer.innerHTML = '';
+        
+        for (const node of this.nodes.values()) {
+            this.renderNode(node);
+        }
+        
+        console.log(`🎨 Rendered ${this.nodes.size} nodes`);
+    }
+
+    /**
+     * Clear all nodes
+     */
+    clearAllNodes() {
+        this.nodeLayer.innerHTML = '';
+        this.nodes.clear();
+        this.selectedNodes.clear();
+        this.selectedNode = null;
+        this.mindMap.nodes = [];
+        this.nodeIdCounter = 1;
+        
+        console.log('🧹 All nodes cleared');
+    }
+
+    /**
+     * Get node data for export
+     */
+    exportNodes() {
+        return [...this.nodes.values()];
+    }
+
+    /**
+     * Import node data
+     */
+    importNodes(nodeData) {
+        this.clearAllNodes();
+        
+        nodeData.forEach(data => {
+            const node = { ...data };
+            this.nodes.set(node.id, node);
+            this.mindMap.nodes.push(node);
+            
+            // Update counter to avoid ID conflicts
+            const nodeNum = parseInt(node.id.split('_')[1]) || 0;
+            this.nodeIdCounter = Math.max(this.nodeIdCounter, nodeNum + 1);
+        });
+        
+        this.renderAllNodes();
+        console.log(`📥 Imported ${nodeData.length} nodes`);
+    }
+
+    /**
+     * Find node by ID
+     */
+    getNode(nodeId) {
+        return this.nodes.get(nodeId);
+    }
+
+    /**
+     * Get all nodes
+     */
+    getAllNodes() {
+        return [...this.nodes.values()];
+    }
+
+    /**
+     * Get selected nodes
+     */
+    getSelectedNodes() {
+        return [...this.selectedNodes].map(id => this.nodes.get(id)).filter(Boolean);
+    }
+}
+
+// Export for use
+window.NodeManager = NodeManager;
