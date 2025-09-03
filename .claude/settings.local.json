@@ -8,7 +8,10 @@
       "Bash(node server.js)",
       "Bash(python:*)",
       "Bash(start http://localhost:8080/)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(curl:*)",
+      "Bash(node:*)",
+      "Bash(start http://localhost:8000/)"
     ],
     "deny": [],
     "ask": []

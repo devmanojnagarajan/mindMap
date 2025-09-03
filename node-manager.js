@@ -500,23 +500,161 @@ class NodeManager {
      * Add interaction behaviors to node
      */
     addNodeInteractions(nodeGroup, node) {
-        // Mouse events for dragging and selection
-        nodeGroup.addEventListener('pointerdown', (e) => this.handleNodePointerDown(e, node));
-        nodeGroup.addEventListener('pointermove', (e) => this.handleNodePointerMove(e, node));
-        nodeGroup.addEventListener('pointerup', (e) => this.handleNodePointerUp(e, node));
+        // Create separate hit areas for different interactions
+        this.createNodeHitAreas(nodeGroup, node);
         
-        // Double-click for editing
+        // Double-click for editing (on the whole node)
         nodeGroup.addEventListener('dblclick', (e) => this.startNodeEditing(node));
         
-        // Context menu
+        // Context menu (on the whole node)
         nodeGroup.addEventListener('contextmenu', (e) => this.showNodeContextMenu(e, node));
         
         // Hover effects
         this.addNodeHoverEffects(nodeGroup, node);
         
         // Make interactive
-        nodeGroup.style.cursor = 'move';
         nodeGroup.style.pointerEvents = 'all';
+    }
+    
+    /**
+     * Create separate hit areas for node interactions
+     */
+    createNodeHitAreas(nodeGroup, node) {
+        const shape = node.shape;
+        const nodeRadius = Math.max(shape.width, shape.height) / 2;
+        
+        // Create inner hit area for moving/dragging (70% of node size)
+        const innerHitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        innerHitArea.setAttribute('class', 'node-inner-hit-area');
+        innerHitArea.setAttribute('r', nodeRadius * 0.7);
+        innerHitArea.setAttribute('fill', 'transparent');
+        innerHitArea.setAttribute('stroke', 'none');
+        innerHitArea.style.cursor = 'move';
+        innerHitArea.style.pointerEvents = 'all';
+        
+        // Create outer hit area for connections (full size ring)
+        const outerHitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        outerHitArea.setAttribute('class', 'node-outer-hit-area');
+        outerHitArea.setAttribute('r', nodeRadius);
+        outerHitArea.setAttribute('fill', 'transparent');
+        outerHitArea.setAttribute('stroke', 'rgba(59, 130, 246, 0.3)'); // Subtle blue ring
+        outerHitArea.setAttribute('stroke-width', '6');
+        outerHitArea.setAttribute('stroke-dasharray', '4,4');
+        outerHitArea.style.cursor = 'crosshair';
+        outerHitArea.style.pointerEvents = 'all';
+        outerHitArea.style.opacity = '0'; // Hidden by default
+        
+        // Add event listeners for inner area (move/drag)
+        innerHitArea.addEventListener('pointerdown', (e) => {
+            console.log('🖱️ Inner hit area clicked - starting node move');
+            this.handleNodePointerDown(e, node);
+        });
+        innerHitArea.addEventListener('pointermove', (e) => this.handleNodePointerMove(e, node));
+        innerHitArea.addEventListener('pointerup', (e) => this.handleNodePointerUp(e, node));
+        
+        // Add event listeners for outer area (connections)
+        outerHitArea.addEventListener('pointerdown', (e) => {
+            console.log('🖱️ Outer hit area clicked - starting connection');
+            this.handleNodeConnectionStart(e, node);
+        });
+        
+        // Show/hide outer ring on hover
+        nodeGroup.addEventListener('mouseenter', () => {
+            outerHitArea.style.opacity = '1';
+        });
+        nodeGroup.addEventListener('mouseleave', () => {
+            outerHitArea.style.opacity = '0';
+        });
+        
+        // Add hit areas to node group (outer first, then inner so inner gets priority in center)
+        nodeGroup.appendChild(outerHitArea);
+        nodeGroup.appendChild(innerHitArea);
+        
+        console.log('🎯 Created separate hit areas for node:', node.id);
+    }
+    
+    /**
+     * Handle connection start from node border
+     */
+    handleNodeConnectionStart(e, node) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        console.log('🔗 Starting connection from node:', node.id);
+        
+        // Enable connect mode if not already enabled
+        if (!this.mindMap.isConnectMode) {
+            this.mindMap.isConnectMode = true;
+            this.mindMap.updateConnectModeButton();
+        }
+        
+        // Set this node as the connection start point
+        this.mindMap.connectionStart = node;
+        
+        // Visual feedback - highlight the starting node
+        const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+        nodeGroup.style.filter = 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.8))';
+        
+        // Start drag connection visual
+        this.mindMap.isDraggingConnection = true;
+        this.mindMap.dragConnectionStart = node;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        this.mindMap.dragConnectionStartPoint = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        
+        // Show drag connection line
+        this.mindMap.dragConnectionLine.style.display = 'block';
+        
+        // Add temporary global mouse move listener for drag connection
+        const handleMouseMove = (moveEvent) => {
+            if (this.mindMap.isDraggingConnection) {
+                const mouseX = moveEvent.clientX - rect.left;
+                const mouseY = moveEvent.clientY - rect.top;
+                
+                const startX = this.mindMap.dragConnectionStartPoint.x;
+                const startY = this.mindMap.dragConnectionStartPoint.y;
+                
+                this.mindMap.dragConnectionLine.setAttribute('d', 
+                    `M ${startX} ${startY} L ${mouseX} ${mouseY}`);
+            }
+        };
+        
+        const handleMouseUp = (upEvent) => {
+            this.mindMap.isDraggingConnection = false;
+            this.mindMap.dragConnectionLine.style.display = 'none';
+            
+            // Remove highlight from starting node
+            nodeGroup.style.filter = '';
+            
+            // Check if we dropped on another node
+            const targetElement = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
+            const targetNodeGroup = targetElement?.closest('[data-node-id]');
+            
+            if (targetNodeGroup && targetNodeGroup !== nodeGroup) {
+                const targetNodeId = targetNodeGroup.getAttribute('data-node-id');
+                const targetNode = this.nodes.get(targetNodeId);
+                
+                if (targetNode && this.mindMap.connectionManager) {
+                    console.log('🔗 Creating connection:', node.id, '->', targetNode.id);
+                    this.mindMap.connectionManager.createConnection(node, targetNode);
+                }
+            }
+            
+            // Clean up
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+            
+            // Exit connect mode
+            this.mindMap.isConnectMode = false;
+            this.mindMap.updateConnectModeButton();
+            this.mindMap.connectionStart = null;
+        };
+        
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
     }
 
     /**

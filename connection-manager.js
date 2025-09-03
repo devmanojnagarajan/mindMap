@@ -39,7 +39,67 @@ class ConnectionManager {
         this.renderQueue = [];
         
         console.log('🔗 ConnectionManager initialized');
+        console.log('📊 Canvas:', this.canvas);
+        console.log('📊 Connection layer:', this.connectionLayer);
+        console.log('📊 Control layer:', this.controlLayer);
+        console.log('📊 Control layer parent:', this.controlLayer ? this.controlLayer.parentElement : 'null');
+        
         this.setupEventListeners();
+    }
+    
+
+    /**
+     * Handle global mouse move for control point dragging
+     */
+    handleGlobalMouseMove(e) {
+        if (!this.isDraggingControlPoint || !this.dragTarget) return;
+        
+        const rect = this.mindMap.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Convert mouse position to world coordinates
+        const worldMouseX = this.mindMap.viewBox.x + (mouseX / rect.width) * this.mindMap.viewBox.width;
+        const worldMouseY = this.mindMap.viewBox.y + (mouseY / rect.height) * this.mindMap.viewBox.height;
+        
+        if (this.dragTarget.type === 'interpolation') {
+            // Update interpolation point position
+            const interpolationData = this.interpolationPoints.get(this.dragTarget.connectionId);
+            if (interpolationData && interpolationData.points[this.dragTarget.pointId]) {
+                interpolationData.points[this.dragTarget.pointId].x = worldMouseX;
+                interpolationData.points[this.dragTarget.pointId].y = worldMouseY;
+                
+                // Update visual position
+                this.dragTarget.handle.setAttribute('transform', `translate(${worldMouseX}, ${worldMouseY})`);
+                
+                // Re-render connection with updated points
+                this.renderConnection(this.dragTarget.connectionId);
+            }
+        } else {
+            // Update control point position
+            const controlPoints = this.connectionControlPoints.get(this.dragTarget.connectionId);
+            if (controlPoints && controlPoints[this.dragTarget.pointId]) {
+                controlPoints[this.dragTarget.pointId].x = worldMouseX;
+                controlPoints[this.dragTarget.pointId].y = worldMouseY;
+                
+                // Update visual position
+                this.dragTarget.handle.setAttribute('transform', `translate(${worldMouseX}, ${worldMouseY})`);
+                
+                // Re-render connection with updated points
+                this.renderConnection(this.dragTarget.connectionId);
+            }
+        }
+    }
+    
+    /**
+     * Handle global mouse up for control point dragging
+     */
+    handleGlobalMouseUp(e) {
+        if (this.isDraggingControlPoint) {
+            this.isDraggingControlPoint = false;
+            this.dragTarget = null;
+            console.log('🎯 Control point drag ended via global mouse up');
+        }
     }
 
     /**
@@ -48,7 +108,14 @@ class ConnectionManager {
     setupEventListeners() {
         // Handle canvas clicks for deselecting connections
         this.canvas.addEventListener('click', (e) => {
-            if (e.target === this.canvas || e.target.closest('#canvas-container')) {
+            // Only deselect if clicking on the canvas background itself, not on interactive elements
+            if ((e.target === this.canvas || e.target.id === 'grid-background') &&
+                !e.target.closest('.node-inner-hit-area') &&
+                !e.target.closest('.node-outer-hit-area') &&
+                !e.target.closest('.connection-overlay') &&
+                !e.target.closest('.control-point-handle')) {
+                
+                console.log('🖱️ Canvas background clicked, deselecting connections');
                 this.deselectAllConnections();
             }
         });
@@ -110,6 +177,19 @@ class ConnectionManager {
 
         console.log('✅ Connection created:', connectionId);
         this.renderConnection(connectionId);
+        
+        // Automatically show control points for new connections
+        setTimeout(() => {
+            this.selectConnection(connectionId);
+            // Add a default control point to make the curve visible
+            const fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
+            const toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+            if (fromNode && toNode) {
+                const midX = (fromNode.x + toNode.x) / 2;
+                const midY = (fromNode.y + toNode.y) / 2 - 50; // Offset above the middle
+                this.addControlPoint(connectionId, midX, midY);
+            }
+        }, 100);
         
         return connectionId;
     }
@@ -383,17 +463,34 @@ class ConnectionManager {
      */
     addConnectionInteractions(overlay, connectionId) {
         overlay.addEventListener('click', (e) => {
+            console.log('🖱️ Connection overlay clicked for:', connectionId);
+            console.log('🖱️ Event target:', e.target);
+            console.log('🖱️ Current target:', e.currentTarget);
             e.stopPropagation();
+            e.preventDefault();
+            console.log('🖱️ Event propagation stopped and default prevented');
             
-            if (e.ctrlKey || e.altKey) {
+            if (e.ctrlKey || e.metaKey) {
                 // Delete connection
                 this.deleteConnection(connectionId);
+            } else if (e.altKey) {
+                // Add interpolation point at click position
+                this.handleConnectionClick(e, connectionId);
             } else if (e.shiftKey) {
                 // Toggle interpolation point visibility
                 this.toggleInterpolationPointVisibility(connectionId);
             } else {
-                // Add interpolation point at click position
-                this.handleConnectionClick(e, connectionId);
+                // Default behavior: select connection and show existing control points, or add new ones
+                this.selectConnection(connectionId);
+                
+                const controlData = this.controlPoints.get(connectionId);
+                if (controlData && controlData.points.length > 0) {
+                    // If control points exist, just show them
+                    this.showControlPoints(connectionId);
+                } else {
+                    // If no control points exist, add one at click position
+                    this.handleConnectionClick(e, connectionId);
+                }
             }
         });
         
@@ -435,6 +532,8 @@ class ConnectionManager {
      * Handle connection click for adding interpolation points
      */
     handleConnectionClick(event, connectionId) {
+        console.log('🖱️ Connection clicked:', connectionId, 'Alt key:', event.altKey, 'Shift key:', event.shiftKey);
+        
         const rect = this.canvas.getBoundingClientRect();
         const clickX = event.clientX - rect.left;
         const clickY = event.clientY - rect.top;
@@ -443,14 +542,29 @@ class ConnectionManager {
         const worldX = this.viewBox.x + (clickX / rect.width) * this.viewBox.width;
         const worldY = this.viewBox.y + (clickY / rect.height) * this.viewBox.height;
         
-        // Add interpolation point at the optimal position along the curve
-        const success = this.addInterpolationPointAtPosition(connectionId, worldX, worldY);
-        
-        if (success) {
-            this.showTemporaryFeedback('Interpolation point added!', worldX, worldY, '#44ff44');
-            this.selectConnection(connectionId);
+        // Check if Alt key is pressed for interpolation points, otherwise add control points
+        if (event.altKey) {
+            // Add interpolation point at the optimal position along the curve
+            console.log('🟢 Adding interpolation point at:', worldX, worldY);
+            const success = this.addInterpolationPointAtPosition(connectionId, worldX, worldY);
+            
+            if (success) {
+                this.showTemporaryFeedback('Green interpolation point added!', worldX, worldY, '#10b981');
+                this.selectConnection(connectionId);
+            } else {
+                this.showTemporaryFeedback('Cannot add point here', worldX, worldY, '#ef4444');
+            }
         } else {
-            this.showTemporaryFeedback('Cannot add point here', worldX, worldY, '#ff4444');
+            // Add control point (default behavior)
+            console.log('🟠 Adding control point at:', worldX, worldY);
+            const success = this.addControlPoint(connectionId, worldX, worldY);
+            
+            if (success) {
+                this.showTemporaryFeedback('Control point added! Drag to reshape curve.', worldX, worldY, '#f97316');
+                this.selectConnection(connectionId);
+            } else {
+                this.showTemporaryFeedback('Max 2 control points per connection', worldX, worldY, '#ef4444');
+            }
         }
     }
 
@@ -458,11 +572,17 @@ class ConnectionManager {
      * Add a control point to a connection
      */
     addControlPoint(connectionId, x, y) {
+        console.log(`➕ Adding control point to ${connectionId} at (${x}, ${y})`);
+        
         const controlData = this.controlPoints.get(connectionId);
-        if (!controlData) return false;
+        if (!controlData) {
+            console.error(`❌ No control data found for connection ${connectionId}`);
+            return false;
+        }
         
         // Limit to 2 control points for cubic Bézier
         if (controlData.points.length >= 2) {
+            console.log(`⚠️ Connection ${connectionId} already has maximum control points (${controlData.points.length})`);
             return false;
         }
         
@@ -475,15 +595,17 @@ class ConnectionManager {
         controlData.points.push(newPoint);
         controlData.visible = true;
         
+        console.log(`✅ Control point added to ${connectionId}. Total: ${controlData.points.length}`, newPoint);
+        
         // Re-render connection
         this.renderConnection(connectionId);
         
         // Show control points
         setTimeout(() => {
+            console.log(`👁️ Attempting to show control points for ${connectionId}`);
             this.showControlPoints(connectionId);
         }, 50);
         
-        console.log(`➕ Control point added to ${connectionId}. Total: ${controlData.points.length}`);
         return true;
     }
 
@@ -618,8 +740,15 @@ class ConnectionManager {
      * Show control points for a connection
      */
     showControlPoints(connectionId) {
+        console.log(`👁️ showControlPoints called for ${connectionId}`);
+        
         const controlData = this.controlPoints.get(connectionId);
-        if (!controlData || controlData.points.length === 0) return;
+        console.log(`📊 Control data:`, controlData);
+        
+        if (!controlData || controlData.points.length === 0) {
+            console.log(`❌ No control data or points for ${connectionId}`);
+            return;
+        }
         
         // Hide other connection's control points
         this.hideAllControlPoints();
@@ -627,23 +756,35 @@ class ConnectionManager {
         controlData.visible = true;
         this.selectedConnection = connectionId;
         
+        console.log(`🎯 Creating handles for ${controlData.points.length} control points`);
+        console.log(`🎯 Control layer:`, this.controlLayer);
+        
         // Create visual handles for each control point
         controlData.points.forEach((point, index) => {
+            console.log(`🎨 Creating handle ${index + 1}/${controlData.points.length}:`, point);
             this.createControlPointHandle(connectionId, point, index);
         });
         
         // Re-render connection with selection styling
         this.renderConnection(connectionId);
         
-        console.log(`👁️ Showing ${controlData.points.length} control points for ${connectionId}`);
+        console.log(`✅ Showing ${controlData.points.length} control points for ${connectionId}`);
+        console.log(`✅ Control layer children count:`, this.controlLayer.children.length);
     }
 
     /**
      * Show interpolation points for a connection
      */
     showInterpolationPoints(connectionId) {
+        console.log(`👁️ showInterpolationPoints called for ${connectionId}`);
+        
         const interpolationData = this.interpolationPoints.get(connectionId);
-        if (!interpolationData || interpolationData.points.length === 0) return;
+        console.log(`📊 Interpolation data:`, interpolationData);
+        
+        if (!interpolationData || interpolationData.points.length === 0) {
+            console.log(`❌ No interpolation data or points for ${connectionId}`);
+            return;
+        }
         
         // Hide all other points first
         this.hideAllInterpolationPoints();
@@ -651,15 +792,18 @@ class ConnectionManager {
         interpolationData.visible = true;
         this.selectedConnection = connectionId;
         
+        console.log(`🎯 Creating handles for ${interpolationData.points.length} interpolation points`);
+        
         // Create visual handles for each interpolation point
         interpolationData.points.forEach((point, index) => {
+            console.log(`🎨 Creating handle ${index + 1}/${interpolationData.points.length}:`, point);
             this.createInterpolationPointHandle(connectionId, point, index);
         });
         
         // Re-render connection with selection styling
         this.renderConnection(connectionId);
         
-        console.log(`👁️ Showing ${interpolationData.points.length} interpolation points for ${connectionId}`);
+        console.log(`✅ Showing ${interpolationData.points.length} interpolation points for ${connectionId}`);
     }
 
     /**
@@ -690,39 +834,53 @@ class ConnectionManager {
      * Create a draggable interpolation point handle
      */
     createInterpolationPointHandle(connectionId, point, index) {
+        console.log(`🎨 Creating interpolation point handle for ${connectionId} at (${point.x}, ${point.y}), index: ${index}`);
+        console.log(`🎨 Control layer:`, this.controlLayer);
+        
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         handle.setAttribute('class', 'interpolation-point-handle');
         handle.setAttribute('data-connection-id', connectionId);
         handle.setAttribute('data-point-id', point.id);
         handle.setAttribute('transform', `translate(${point.x}, ${point.y})`);
+        handle.style.opacity = '1'; // Ensure visibility
+        
+        console.log(`🎨 Handle created:`, handle);
         
         // Visual circle - different style from control points
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('class', 'interpolation-point-circle');
-        circle.setAttribute('r', '6');
+        circle.setAttribute('r', '9'); // Made larger for better visibility
         circle.setAttribute('fill', '#10B981'); // Green color for interpolation points
         circle.setAttribute('stroke', '#FFFFFF');
-        circle.setAttribute('stroke-width', '2');
-        circle.style.filter = 'drop-shadow(0 2px 4px rgba(16,185,129,0.4))';
+        circle.setAttribute('stroke-width', '3'); // Thicker stroke for visibility
+        circle.style.filter = 'drop-shadow(0 3px 6px rgba(16,185,129,0.6))';
+        
+        console.log(`🎨 Circle created:`, circle);
         
         // Hit area for easier interaction
         const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         hitArea.setAttribute('class', 'interpolation-point-hit-area');
-        hitArea.setAttribute('r', '20');
-        hitArea.setAttribute('fill', 'transparent');
+        hitArea.setAttribute('r', '25'); // Made larger for easier clicking
+        hitArea.setAttribute('fill', 'rgba(16,185,129,0.1)'); // Slightly visible for debugging
+        hitArea.setAttribute('stroke', '#10B981'); // Visible stroke for debugging
+        hitArea.setAttribute('stroke-width', '1');
         hitArea.style.cursor = 'move';
         hitArea.style.pointerEvents = 'all';
+        
+        console.log(`🎨 Hit area created:`, hitArea);
         
         // Index indicator for debugging/development
         const indexText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         indexText.setAttribute('x', '0');
-        indexText.setAttribute('y', '-12');
+        indexText.setAttribute('y', '-15');
         indexText.setAttribute('text-anchor', 'middle');
         indexText.setAttribute('fill', '#10B981');
-        indexText.setAttribute('font-size', '10');
+        indexText.setAttribute('font-size', '12');
         indexText.setAttribute('font-weight', 'bold');
         indexText.style.pointerEvents = 'none';
         indexText.textContent = index + 1; // 1-based index for user
+        
+        console.log(`🎨 Index text created:`, indexText);
         
         handle.appendChild(circle);
         handle.appendChild(hitArea);
@@ -733,10 +891,13 @@ class ConnectionManager {
         this.addInterpolationPointDeleteBehavior(handle, hitArea, connectionId, point.id);
         this.addInterpolationPointHoverEffects(handle, circle);
         
+        console.log(`🎨 Adding handle to control layer:`, this.controlLayer);
         this.controlLayer.appendChild(handle);
+        console.log(`🎨 Handle added. Control layer children count:`, this.controlLayer.children.length);
         
-        // Animate in with slight delay based on index
-        this.animateInterpolationPointIn(handle, index);
+        // Skip animation for now to debug visibility
+        // this.animateInterpolationPointIn(handle, index);
+        console.log(`🎨 Interpolation point handle should be visible at (${point.x}, ${point.y})`);
         
         return handle;
     }
@@ -962,8 +1123,12 @@ class ConnectionManager {
      * Hide all control points
      */
     hideAllControlPoints() {
+        console.log('🙈 hideAllControlPoints called');
+        console.log('🙈 Stack trace:', new Error().stack);
+        
         // Remove all control point handles
         const handles = this.controlLayer.querySelectorAll('.control-point-handle');
+        console.log('🙈 Removing', handles.length, 'control point handles');
         handles.forEach(handle => handle.remove());
         
         // Update visibility state
@@ -986,41 +1151,125 @@ class ConnectionManager {
      * Create a draggable control point handle
      */
     createControlPointHandle(connectionId, point, index) {
+        console.log(`🎨 Creating control point handle for ${connectionId} at (${point.x}, ${point.y}), index: ${index}`);
+        console.log(`🎨 Control layer:`, this.controlLayer);
+        
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         handle.setAttribute('class', 'control-point-handle');
         handle.setAttribute('data-connection-id', connectionId);
         handle.setAttribute('data-point-id', point.id);
         handle.setAttribute('transform', `translate(${point.x}, ${point.y})`);
+        handle.style.opacity = '1'; // Ensure visibility
+        handle.style.display = 'block'; // Force display
+        handle.style.visibility = 'visible'; // Force visibility
+        handle.style.zIndex = '9999'; // Force high z-index
+        handle.style.pointerEvents = 'all'; // Ensure interactivity
         
-        // Visual circle
+        console.log(`🎨 Handle created:`, handle);
+        
+        // Visual circle - made larger and more prominent
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('class', 'control-point-circle');
-        circle.setAttribute('r', '8');
-        circle.setAttribute('fill', '#FF6B35');
+        circle.setAttribute('r', '12'); // Larger for better visibility
+        circle.setAttribute('fill', '#FF6B35'); // Orange color
         circle.setAttribute('stroke', '#FFFFFF');
-        circle.setAttribute('stroke-width', '2');
-        circle.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))';
+        circle.setAttribute('stroke-width', '3');
+        circle.style.filter = 'drop-shadow(0 3px 6px rgba(255,107,53,0.5))';
+        circle.style.opacity = '1';
+        circle.style.visibility = 'visible';
         
-        // Hit area for easier interaction
+        console.log(`🎨 Control point circle created with radius 12 and orange color`);
+        
+        // Hit area for easier interaction - made larger
         const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         hitArea.setAttribute('class', 'control-point-hit-area');
-        hitArea.setAttribute('r', '20');
-        hitArea.setAttribute('fill', 'transparent');
+        hitArea.setAttribute('r', '25');
+        hitArea.setAttribute('fill', 'rgba(255,107,53,0.1)'); // Slightly visible for debugging
+        hitArea.setAttribute('stroke', '#FF6B35');
+        hitArea.setAttribute('stroke-width', '1');
+        hitArea.setAttribute('stroke-dasharray', '2,2');
         hitArea.style.cursor = 'move';
         hitArea.style.pointerEvents = 'all';
         
+        // Index indicator for control points (1, 2)
+        const indexText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        indexText.setAttribute('x', '0');
+        indexText.setAttribute('y', '-18');
+        indexText.setAttribute('text-anchor', 'middle');
+        indexText.setAttribute('fill', '#FF6B35');
+        indexText.setAttribute('font-size', '14');
+        indexText.setAttribute('font-weight', 'bold');
+        indexText.style.pointerEvents = 'none';
+        indexText.textContent = `C${index + 1}`; // C1, C2 for control points
+        
         handle.appendChild(circle);
         handle.appendChild(hitArea);
+        handle.appendChild(indexText);
         
         // Add behaviors
         this.addControlPointDragBehavior(handle, hitArea, connectionId, point.id);
         this.addControlPointDeleteBehavior(handle, hitArea, connectionId, point.id);
         this.addControlPointHoverEffects(handle, circle);
         
+        console.log(`🎨 Adding handle to control layer:`, this.controlLayer);
         this.controlLayer.appendChild(handle);
+        console.log(`🎨 Handle added. Control layer children count:`, this.controlLayer.children.length);
         
-        // Animate in
-        this.animateControlPointIn(handle, index);
+        // Skip animation for debugging - set directly visible
+        // this.animateControlPointIn(handle, index);
+        
+        // Comprehensive debugging of visual properties
+        setTimeout(() => {
+            console.log('🔍 === CONTROL POINT VISIBILITY DEBUG ===');
+            console.log(`🔍 Handle element:`, handle);
+            console.log(`🔍 Handle in DOM:`, document.contains(handle));
+            console.log(`🔍 Handle parent:`, handle.parentElement);
+            console.log(`🔍 Handle transform:`, handle.getAttribute('transform'));
+            console.log(`🔍 Handle class:`, handle.getAttribute('class'));
+            console.log(`🔍 Handle style.opacity:`, handle.style.opacity);
+            console.log(`🔍 Handle style.display:`, handle.style.display);
+            console.log(`🔍 Handle style.visibility:`, handle.style.visibility);
+            console.log(`🔍 Handle style.zIndex:`, handle.style.zIndex);
+            
+            // Check computed styles
+            const computedStyle = getComputedStyle(handle);
+            console.log(`🔍 Computed opacity:`, computedStyle.opacity);
+            console.log(`🔍 Computed display:`, computedStyle.display);
+            console.log(`🔍 Computed visibility:`, computedStyle.visibility);
+            console.log(`🔍 Computed zIndex:`, computedStyle.zIndex);
+            console.log(`🔍 Computed transform:`, computedStyle.transform);
+            
+            // Check control layer properties
+            console.log(`🔍 Control layer:`, this.controlLayer);
+            console.log(`🔍 Control layer children:`, this.controlLayer.children.length);
+            console.log(`🔍 Control layer style.opacity:`, this.controlLayer.style.opacity);
+            console.log(`🔍 Control layer style.display:`, this.controlLayer.style.display);
+            console.log(`🔍 Control layer style.visibility:`, this.controlLayer.style.visibility);
+            
+            // Check canvas/SVG hierarchy
+            console.log(`🔍 Canvas:`, this.canvas);
+            console.log(`🔍 Canvas viewBox:`, this.canvas.getAttribute('viewBox'));
+            console.log(`🔍 Canvas style:`, this.canvas.style.cssText);
+            
+            // Check circle element specifically
+            const circle = handle.querySelector('.control-point-circle');
+            if (circle) {
+                console.log(`🔍 Circle element:`, circle);
+                console.log(`🔍 Circle r:`, circle.getAttribute('r'));
+                console.log(`🔍 Circle fill:`, circle.getAttribute('fill'));
+                console.log(`🔍 Circle stroke:`, circle.getAttribute('stroke'));
+                console.log(`🔍 Circle stroke-width:`, circle.getAttribute('stroke-width'));
+                console.log(`🔍 Circle style.filter:`, circle.style.filter);
+            }
+            
+            // Check position in viewport
+            const bbox = handle.getBBox ? handle.getBBox() : null;
+            console.log(`🔍 Handle bounding box:`, bbox);
+            
+            console.log('🔍 === END DEBUG ===');
+        }, 100);
+        
+        console.log(`🎨 Control point handle should be visible at (${point.x}, ${point.y})`);
         
         return handle;
     }
@@ -1259,6 +1508,12 @@ class ConnectionManager {
     selectConnection(connectionId) {
         this.selectedConnection = connectionId;
         this.renderConnection(connectionId);
+        
+        // Show control points if they exist
+        const controlData = this.controlPoints.get(connectionId);
+        if (controlData && controlData.points.length > 0) {
+            this.showControlPoints(connectionId);
+        }
     }
 
     /**
@@ -1297,8 +1552,97 @@ class ConnectionManager {
      * Show connection context menu
      */
     showConnectionContextMenu(event, connectionId) {
-        // Implementation for context menu
         console.log('🔗 Connection context menu:', connectionId);
+        
+        const interpolationData = this.interpolationPoints.get(connectionId);
+        const controlData = this.controlPoints.get(connectionId);
+        
+        // Create context menu
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        menu.style.cssText = `
+            position: fixed;
+            left: ${event.clientX}px;
+            top: ${event.clientY}px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 4px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            min-width: 200px;
+        `;
+        
+        const menuItems = [
+            {
+                text: '🟢 Add Interpolation Point',
+                action: () => {
+                    // Add interpolation point at connection center
+                    const connection = this.connections.get(connectionId);
+                    const fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
+                    const toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+                    const centerX = (fromNode.x + toNode.x) / 2;
+                    const centerY = (fromNode.y + toNode.y) / 2;
+                    this.addInterpolationPointAtPosition(connectionId, centerX, centerY);
+                    this.showTemporaryFeedback('Interpolation point added!', centerX, centerY, '#10b981');
+                }
+            },
+            {
+                text: '🟠 Add Control Point', 
+                action: () => {
+                    const connection = this.connections.get(connectionId);
+                    const fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
+                    const toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+                    const centerX = (fromNode.x + toNode.x) / 2;
+                    const centerY = (fromNode.y + toNode.y) / 2 - 50; // Offset above center
+                    this.addControlPoint(connectionId, centerX, centerY);
+                    this.showTemporaryFeedback('Control point added!', centerX, centerY, '#f97316');
+                }
+            },
+            {
+                text: interpolationData?.visible ? '👁️ Hide Interpolation Points' : '👁️ Show Interpolation Points',
+                action: () => this.toggleInterpolationPointVisibility(connectionId)
+            },
+            {
+                text: controlData?.visible ? '👁️ Hide Control Points' : '👁️ Show Control Points',
+                action: () => this.toggleControlPointVisibility(connectionId)
+            },
+            {
+                text: '🗑️ Delete Connection',
+                action: () => this.deleteConnection(connectionId)
+            }
+        ];
+        
+        menuItems.forEach(item => {
+            const menuItem = document.createElement('div');
+            menuItem.className = 'context-menu-item';
+            menuItem.textContent = item.text;
+            menuItem.style.cssText = `
+                padding: 8px 12px;
+                cursor: pointer;
+                font-size: 14px;
+            `;
+            menuItem.addEventListener('mouseenter', () => {
+                menuItem.style.backgroundColor = '#f0f0f0';
+            });
+            menuItem.addEventListener('mouseleave', () => {
+                menuItem.style.backgroundColor = 'transparent';
+            });
+            menuItem.addEventListener('click', () => {
+                item.action();
+                menu.remove();
+            });
+            menu.appendChild(menuItem);
+        });
+        
+        // Remove menu when clicking elsewhere
+        const removeMenu = () => {
+            menu.remove();
+            document.removeEventListener('click', removeMenu);
+        };
+        setTimeout(() => document.addEventListener('click', removeMenu), 100);
+        
+        document.body.appendChild(menu);
     }
 
     /**

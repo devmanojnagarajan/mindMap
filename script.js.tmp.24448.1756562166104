@@ -135,10 +135,7 @@ class MindMap {
                 this.clearSelection();
                 this.isConnectMode = false;
                 this.updateConnectModeButton();
-                if (this.connectionManager) {
-                    this.connectionManager.deselectAllConnections();
-                }
-                console.log('🖱️ Escape key pressed - clearing selections');
+                this.hideAllControlPoints();
             } else if (e.key === ' ') {
                 e.preventDefault();
                 this.isSpacePressed = true;
@@ -1165,18 +1162,14 @@ class MindMap {
     }
 
     onMouseDown(e) {
-        // Check if clicking on empty canvas area (not on nodes, connections, or interactive elements)
-        if (!e.target.closest('.node') && 
-            !e.target.closest('.connection-line') && 
-            !e.target.closest('.connection-overlay') &&
-            !e.target.closest('.control-point-handle') && 
-            !e.target.closest('.node-inner-hit-area') &&
-            !e.target.closest('.node-outer-hit-area') &&
-            e.target.tagName.toLowerCase() !== 'path') {
+        // Check if clicking on empty canvas area (not on nodes or connections)
+        if (!e.target.closest('.node') && !e.target.closest('.connection-line') && 
+            !e.target.closest('.control-point-handle') && e.target.tagName.toLowerCase() !== 'path') {
             
             // Deselect all connections when clicking on empty space
-            console.log('🖱️ Clicking on empty canvas area - deselecting connections');
-            this.deselectAllConnections();
+            if (this.connectionManager) {
+                this.connectionManager.deselectAllConnections();
+            }
             
             const rect = this.canvas.getBoundingClientRect();
             const canvasX = e.clientX - rect.left;
