@@ -526,14 +526,20 @@ class NodeManager {
         const outerRingGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         outerRingGroup.setAttribute('class', 'node-outer-hit-group');
         
-        // Outer circle - invisible but large hit area for connections
-        const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        outerCircle.setAttribute('r', nodeRadius + 12);
-        outerCircle.setAttribute('fill', 'transparent');
-        outerCircle.setAttribute('stroke', 'transparent');
-        outerCircle.setAttribute('stroke-width', '24'); // Wide ring area
-        outerCircle.style.cursor = 'crosshair';
-        outerCircle.style.pointerEvents = 'all';
+        // Create a proper ring (annulus) for connection area - only the ring area should be clickable
+        const outerRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        outerRing.setAttribute('r', nodeRadius + 15);
+        outerRing.setAttribute('fill', 'transparent');
+        outerRing.setAttribute('stroke', 'transparent');
+        outerRing.setAttribute('stroke-width', '30'); // Wide ring area for easy clicking
+        outerRing.style.cursor = 'crosshair';
+        outerRing.style.pointerEvents = 'all';
+        
+        // Create an inner hole to prevent clicks in the center from triggering connection
+        const innerHole = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        innerHole.setAttribute('r', nodeRadius + 2);
+        innerHole.setAttribute('fill', 'transparent');
+        innerHole.style.pointerEvents = 'none'; // Allow clicks to pass through
         
         // Visual indicator ring (for showing connection possibility)
         const visualRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -548,13 +554,14 @@ class NodeManager {
         visualRing.style.pointerEvents = 'none'; // Don't interfere with interaction
         visualRing.style.animation = 'dash 2s linear infinite';
         
-        outerRingGroup.appendChild(outerCircle);
+        outerRingGroup.appendChild(outerRing);
+        outerRingGroup.appendChild(innerHole);
         outerRingGroup.appendChild(visualRing);
         
-        // Create inner hit area for moving/dragging (smaller than node)
+        // Create inner hit area for moving/dragging (MUST NOT overlap with outer ring)
         const innerHitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         innerHitArea.setAttribute('class', 'node-inner-hit-area');
-        innerHitArea.setAttribute('r', nodeRadius * 0.7); // Cover most of the node
+        innerHitArea.setAttribute('r', nodeRadius); // Same size as the actual node, no overlap with outer ring
         innerHitArea.setAttribute('fill', 'transparent');
         innerHitArea.style.cursor = 'move';
         innerHitArea.style.pointerEvents = 'all';
@@ -565,19 +572,19 @@ class NodeManager {
         });
         
         // Add event listeners for outer ring (connections)
-        outerCircle.addEventListener('pointerdown', (e) => {
+        outerRing.addEventListener('pointerdown', (e) => {
             this.handleNodeConnectionStart(e, node);
         });
         
         // Show/hide connection indicator on hover
         nodeGroup.addEventListener('mouseenter', () => {
             visualRing.style.opacity = '1';
-            outerCircle.style.fill = 'rgba(56, 189, 248, 0.1)';
+            outerRing.style.fill = 'rgba(56, 189, 248, 0.1)';
         });
         
         nodeGroup.addEventListener('mouseleave', () => {
             visualRing.style.opacity = '0';
-            outerCircle.style.fill = 'transparent';
+            outerRing.style.fill = 'transparent';
         });
         
         // Add hit areas to node group - ORDER MATTERS!
