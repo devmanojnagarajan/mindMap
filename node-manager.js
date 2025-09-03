@@ -13,7 +13,6 @@ class NodeManager {
         this.mindMap = mindMap;
         this.canvas = mindMap.canvas;
         this.nodeLayer = mindMap.nodeLayer;
-        this.viewBox = mindMap.viewBox;
         
         // Node storage and management
         this.nodes = new Map(); // id -> node data
@@ -130,8 +129,8 @@ class NodeManager {
                 x = parentNode.x + Math.cos(angle) * distance;
                 y = parentNode.y + Math.sin(angle) * distance;
             } else {
-                x = Math.random() * (this.viewBox.width - 200) + 100;
-                y = Math.random() * (this.viewBox.height - 200) + 100;
+                x = Math.random() * (this.mindMap.viewBox.width - 200) + 100;
+                y = Math.random() * (this.mindMap.viewBox.height - 200) + 100;
             }
         }
         
@@ -523,54 +522,70 @@ class NodeManager {
         const shape = node.shape;
         const nodeRadius = Math.max(shape.width, shape.height) / 2;
         
-        // Create inner hit area for moving/dragging (70% of node size)
+        // Create outer ring for connections using a proper ring shape (annulus)
+        const outerRingGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        outerRingGroup.setAttribute('class', 'node-outer-hit-group');
+        
+        // Outer circle - invisible but large hit area for connections
+        const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        outerCircle.setAttribute('r', nodeRadius + 12);
+        outerCircle.setAttribute('fill', 'transparent');
+        outerCircle.setAttribute('stroke', 'transparent');
+        outerCircle.setAttribute('stroke-width', '24'); // Wide ring area
+        outerCircle.style.cursor = 'crosshair';
+        outerCircle.style.pointerEvents = 'all';
+        
+        // Visual indicator ring (for showing connection possibility)
+        const visualRing = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        visualRing.setAttribute('class', 'node-connection-indicator');
+        visualRing.setAttribute('r', nodeRadius + 12);
+        visualRing.setAttribute('fill', 'transparent');
+        visualRing.setAttribute('stroke', '#38BDF8');
+        visualRing.setAttribute('stroke-width', '3');
+        visualRing.setAttribute('stroke-dasharray', '6,4');
+        visualRing.style.opacity = '0'; // Hidden by default
+        visualRing.style.transition = 'opacity 0.2s ease';
+        visualRing.style.pointerEvents = 'none'; // Don't interfere with interaction
+        visualRing.style.animation = 'dash 2s linear infinite';
+        
+        outerRingGroup.appendChild(outerCircle);
+        outerRingGroup.appendChild(visualRing);
+        
+        // Create inner hit area for moving/dragging (smaller than node)
         const innerHitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         innerHitArea.setAttribute('class', 'node-inner-hit-area');
-        innerHitArea.setAttribute('r', nodeRadius * 0.7);
+        innerHitArea.setAttribute('r', nodeRadius * 0.7); // Cover most of the node
         innerHitArea.setAttribute('fill', 'transparent');
-        innerHitArea.setAttribute('stroke', 'none');
         innerHitArea.style.cursor = 'move';
         innerHitArea.style.pointerEvents = 'all';
         
-        // Create outer hit area for connections (full size ring)
-        const outerHitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        outerHitArea.setAttribute('class', 'node-outer-hit-area');
-        outerHitArea.setAttribute('r', nodeRadius);
-        outerHitArea.setAttribute('fill', 'transparent');
-        outerHitArea.setAttribute('stroke', 'rgba(59, 130, 246, 0.3)'); // Subtle blue ring
-        outerHitArea.setAttribute('stroke-width', '6');
-        outerHitArea.setAttribute('stroke-dasharray', '4,4');
-        outerHitArea.style.cursor = 'crosshair';
-        outerHitArea.style.pointerEvents = 'all';
-        outerHitArea.style.opacity = '0'; // Hidden by default
-        
         // Add event listeners for inner area (move/drag)
         innerHitArea.addEventListener('pointerdown', (e) => {
-            console.log('🖱️ Inner hit area clicked - starting node move');
-            this.handleNodePointerDown(e, node);
+            this.handleNodePointerDown(e, node, innerHitArea);
         });
-        innerHitArea.addEventListener('pointermove', (e) => this.handleNodePointerMove(e, node));
-        innerHitArea.addEventListener('pointerup', (e) => this.handleNodePointerUp(e, node));
         
-        // Add event listeners for outer area (connections)
-        outerHitArea.addEventListener('pointerdown', (e) => {
-            console.log('🖱️ Outer hit area clicked - starting connection');
+        // Add event listeners for outer ring (connections)
+        outerCircle.addEventListener('pointerdown', (e) => {
             this.handleNodeConnectionStart(e, node);
         });
         
-        // Show/hide outer ring on hover
+        // Show/hide connection indicator on hover
         nodeGroup.addEventListener('mouseenter', () => {
-            outerHitArea.style.opacity = '1';
-        });
-        nodeGroup.addEventListener('mouseleave', () => {
-            outerHitArea.style.opacity = '0';
+            visualRing.style.opacity = '1';
+            outerCircle.style.fill = 'rgba(56, 189, 248, 0.1)';
         });
         
-        // Add hit areas to node group (outer first, then inner so inner gets priority in center)
-        nodeGroup.appendChild(outerHitArea);
+        nodeGroup.addEventListener('mouseleave', () => {
+            visualRing.style.opacity = '0';
+            outerCircle.style.fill = 'transparent';
+        });
+        
+        // Add hit areas to node group - ORDER MATTERS!
+        // Outer ring first (will be behind)
+        nodeGroup.appendChild(outerRingGroup);
+        // Inner area last (will be on top in center)
         nodeGroup.appendChild(innerHitArea);
         
-        console.log('🎯 Created separate hit areas for node:', node.id);
     }
     
     /**
@@ -580,66 +595,96 @@ class NodeManager {
         e.preventDefault();
         e.stopPropagation();
         
-        console.log('🔗 Starting connection from node:', node.id);
+        console.log('🔗 CONNECTION START:', node.id, 'at position', {x: node.x, y: node.y});
         
-        // Enable connect mode if not already enabled
-        if (!this.mindMap.isConnectMode) {
-            this.mindMap.isConnectMode = true;
-            this.mindMap.updateConnectModeButton();
-        }
+        // CRITICAL: Disable any potential node dragging during connection creation
+        this.isDragging = false;
+        this.dragTarget = null;
         
-        // Set this node as the connection start point
-        this.mindMap.connectionStart = node;
-        
-        // Visual feedback - highlight the starting node
+        // Get starting node position - use simple node center instead of edge calculation
         const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
-        nodeGroup.style.filter = 'drop-shadow(0 0 10px rgba(59, 130, 246, 0.8))';
-        
-        // Start drag connection visual
-        this.mindMap.isDraggingConnection = true;
-        this.mindMap.dragConnectionStart = node;
-        
         const rect = this.canvas.getBoundingClientRect();
-        this.mindMap.dragConnectionStartPoint = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
+        
+        // Use node center for simplicity to avoid coordinate calculation issues
+        const startPoint = { x: node.x, y: node.y };
+        console.log('🔗 Using node center as start point:', startPoint);
+        
+        // Visual feedback - highlight source node (using only filter to avoid transform conflicts)
+        nodeGroup.style.filter = 'drop-shadow(0 0 12px rgba(59, 130, 246, 0.8)) brightness(1.1)';
         
         // Show drag connection line
-        this.mindMap.dragConnectionLine.style.display = 'block';
+        const dragLine = this.mindMap.dragConnectionLine;
+        dragLine.style.display = 'block';
+        dragLine.setAttribute('stroke', '#38BDF8');
+        dragLine.setAttribute('stroke-width', '3');
+        dragLine.setAttribute('stroke-dasharray', '5,5');
+        dragLine.style.filter = 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.6))';
         
-        // Add temporary global mouse move listener for drag connection
+        let currentTarget = null;
+        
         const handleMouseMove = (moveEvent) => {
-            if (this.mindMap.isDraggingConnection) {
-                const mouseX = moveEvent.clientX - rect.left;
-                const mouseY = moveEvent.clientY - rect.top;
-                
-                const startX = this.mindMap.dragConnectionStartPoint.x;
-                const startY = this.mindMap.dragConnectionStartPoint.y;
-                
-                this.mindMap.dragConnectionLine.setAttribute('d', 
-                    `M ${startX} ${startY} L ${mouseX} ${mouseY}`);
+            const mouseX = moveEvent.clientX - rect.left;
+            const mouseY = moveEvent.clientY - rect.top;
+            
+            // Convert mouse position to world coordinates for the drag line
+            const worldMouseX = this.mindMap.viewBox.x + (mouseX / rect.width) * this.mindMap.viewBox.width;
+            const worldMouseY = this.mindMap.viewBox.y + (mouseY / rect.height) * this.mindMap.viewBox.height;
+            
+            // Update drag line
+            dragLine.setAttribute('d', `M ${startPoint.x} ${startPoint.y} L ${worldMouseX} ${worldMouseY}`);
+            
+            // Check for potential drop targets
+            const element = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+            const targetNodeGroup = element?.closest('[data-node-id]');
+            const targetNodeId = targetNodeGroup?.getAttribute('data-node-id');
+            
+            // Update target highlighting
+            if (currentTarget && currentTarget !== targetNodeId) {
+                // Remove previous highlight
+                const prevTarget = this.nodeLayer.querySelector(`[data-node-id="${currentTarget}"]`);
+                if (prevTarget) {
+                    prevTarget.style.filter = '';
+                }
             }
+            
+            if (targetNodeId && targetNodeId !== node.id && targetNodeId !== currentTarget) {
+                // Highlight new target (using only filter to avoid transform conflicts)
+                const targetElement = this.nodeLayer.querySelector(`[data-node-id="${targetNodeId}"]`);
+                if (targetElement) {
+                    targetElement.style.filter = 'drop-shadow(0 0 12px rgba(34, 197, 94, 0.8)) brightness(1.1)';
+                }
+            }
+            
+            currentTarget = (targetNodeId && targetNodeId !== node.id) ? targetNodeId : null;
         };
         
         const handleMouseUp = (upEvent) => {
-            this.mindMap.isDraggingConnection = false;
-            this.mindMap.dragConnectionLine.style.display = 'none';
+            // Hide drag line
+            dragLine.style.display = 'none';
             
-            // Remove highlight from starting node
+            // Remove source node highlight
             nodeGroup.style.filter = '';
             
-            // Check if we dropped on another node
-            const targetElement = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
-            const targetNodeGroup = targetElement?.closest('[data-node-id]');
+            // Remove target highlight
+            if (currentTarget) {
+                const targetElement = this.nodeLayer.querySelector(`[data-node-id="${currentTarget}"]`);
+                if (targetElement) {
+                    targetElement.style.filter = '';
+                }
+            }
             
-            if (targetNodeGroup && targetNodeGroup !== nodeGroup) {
-                const targetNodeId = targetNodeGroup.getAttribute('data-node-id');
-                const targetNode = this.nodes.get(targetNodeId);
-                
+            // Create connection if dropped on valid target
+            if (currentTarget) {
+                const targetNode = this.nodes.get(currentTarget);
                 if (targetNode && this.mindMap.connectionManager) {
-                    console.log('🔗 Creating connection:', node.id, '->', targetNode.id);
+                    console.log('🔗 CREATING CONNECTION:', node.id, '->', currentTarget);
+                    console.log('🔗 From node pos:', {x: node.x, y: node.y});
+                    console.log('🔗 To node pos:', {x: targetNode.x, y: targetNode.y});
+                    
                     this.mindMap.connectionManager.createConnection(node, targetNode);
+                    
+                    // Brief success feedback
+                    this.showConnectionFeedback(node, targetNode);
                 }
             }
             
@@ -647,20 +692,89 @@ class NodeManager {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
             
-            // Exit connect mode
-            this.mindMap.isConnectMode = false;
-            this.mindMap.updateConnectModeButton();
-            this.mindMap.connectionStart = null;
+            console.log('🔗 CONNECTION CLEANUP - final node positions:');
+            console.log('🔗 Source node:', node.id, {x: node.x, y: node.y});
+            if (currentTarget) {
+                const targetNode = this.nodes.get(currentTarget);
+                console.log('🔗 Target node:', currentTarget, {x: targetNode?.x, y: targetNode?.y});
+            }
         };
         
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', handleMouseUp);
     }
+    
+    /**
+     * Calculate connection point on node edge closest to mouse position
+     */
+    calculateNodeEdgePoint(node, mouseX, mouseY) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseCanvasX = mouseX - rect.left;
+        const mouseCanvasY = mouseY - rect.top;
+        
+        // Convert to world coordinates
+        const mouseWorldX = this.mindMap.viewBox.x + (mouseCanvasX / rect.width) * this.mindMap.viewBox.width;
+        const mouseWorldY = this.mindMap.viewBox.y + (mouseCanvasY / rect.height) * this.mindMap.viewBox.height;
+        
+        // Calculate direction from node center to mouse
+        const dx = mouseWorldX - node.x;
+        const dy = mouseWorldY - node.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance === 0) return { x: node.x, y: node.y };
+        
+        // Get node radius (assuming circular for now)
+        const nodeRadius = node.shape ? Math.max(node.shape.width, node.shape.height) / 2 : 40;
+        
+        // Calculate point on node edge
+        const unitX = dx / distance;
+        const unitY = dy / distance;
+        
+        const edgeX = node.x + unitX * nodeRadius;
+        const edgeY = node.y + unitY * nodeRadius;
+        
+        // Convert back to canvas coordinates for the drag line
+        const canvasX = ((edgeX - this.mindMap.viewBox.x) / this.mindMap.viewBox.width) * rect.width;
+        const canvasY = ((edgeY - this.mindMap.viewBox.y) / this.mindMap.viewBox.height) * rect.height;
+        
+        return { x: canvasX, y: canvasY };
+    }
+    
+    /**
+     * Show brief success feedback when connection is created
+     */
+    showConnectionFeedback(fromNode, toNode) {
+        // Create temporary success indicator
+        const feedback = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        feedback.setAttribute('x', (fromNode.x + toNode.x) / 2);
+        feedback.setAttribute('y', (fromNode.y + toNode.y) / 2);
+        feedback.setAttribute('text-anchor', 'middle');
+        feedback.setAttribute('fill', '#10B981');
+        feedback.setAttribute('font-size', '14');
+        feedback.setAttribute('font-weight', 'bold');
+        feedback.textContent = '✓ Connected';
+        feedback.style.opacity = '1';
+        feedback.style.transition = 'all 0.8s ease-out';
+        
+        this.nodeLayer.appendChild(feedback);
+        
+        // Animate out
+        requestAnimationFrame(() => {
+            feedback.style.opacity = '0';
+            feedback.style.transform = 'translateY(-20px)';
+        });
+        
+        setTimeout(() => {
+            if (feedback.parentNode) {
+                feedback.remove();
+            }
+        }, 800);
+    }
 
     /**
      * Handle node pointer down (start drag or select)
      */
-    handleNodePointerDown(e, node) {
+    handleNodePointerDown(e, node, hitArea) {
         e.preventDefault();
         e.stopPropagation();
         
@@ -672,8 +786,8 @@ class NodeManager {
         this.dragStartPos.y = e.clientY - rect.top;
         
         // Calculate drag offset
-        const worldMouseX = this.viewBox.x + (this.dragStartPos.x / rect.width) * this.viewBox.width;
-        const worldMouseY = this.viewBox.y + (this.dragStartPos.y / rect.height) * this.viewBox.height;
+        const worldMouseX = this.mindMap.viewBox.x + (this.dragStartPos.x / rect.width) * this.mindMap.viewBox.width;
+        const worldMouseY = this.mindMap.viewBox.y + (this.dragStartPos.y / rect.height) * this.mindMap.viewBox.height;
         
         this.dragOffset.x = worldMouseX - node.x;
         this.dragOffset.y = worldMouseY - node.y;
@@ -686,7 +800,20 @@ class NodeManager {
         }
         
         // Capture pointer for smooth dragging
-        e.target.closest('.node-group').setPointerCapture(e.pointerId);
+        const nodeGroup = e.target.closest('.node-group');
+        nodeGroup.setPointerCapture(e.pointerId);
+        
+        // Add temporary move and up listeners
+        const handleMove = (moveEvent) => this.handleNodePointerMove(moveEvent, node);
+        const handleUp = (upEvent) => {
+            this.handleNodePointerUp(upEvent, node);
+            // Remove temporary listeners
+            document.removeEventListener('pointermove', handleMove);
+            document.removeEventListener('pointerup', handleUp);
+        };
+        
+        document.addEventListener('pointermove', handleMove);
+        document.addEventListener('pointerup', handleUp);
         
         console.log('🖱️ Node drag started:', node.id);
     }
@@ -702,8 +829,8 @@ class NodeManager {
         const mouseY = e.clientY - rect.top;
         
         // Convert to world coordinates
-        const worldMouseX = this.viewBox.x + (mouseX / rect.width) * this.viewBox.width;
-        const worldMouseY = this.viewBox.y + (mouseY / rect.height) * this.viewBox.height;
+        const worldMouseX = this.mindMap.viewBox.x + (mouseX / rect.width) * this.mindMap.viewBox.width;
+        const worldMouseY = this.mindMap.viewBox.y + (mouseY / rect.height) * this.mindMap.viewBox.height;
         
         // Calculate new position
         const newX = worldMouseX - this.dragOffset.x;
@@ -775,8 +902,7 @@ class NodeManager {
             if (!this.isDragging) {
                 const shape = nodeGroup.querySelector('circle, rect, polygon');
                 if (shape) {
-                    shape.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2))';
-                    shape.style.transform = 'scale(1.05)';
+                    shape.style.filter = 'drop-shadow(0 4px 8px rgba(0,0,0,0.2)) brightness(1.05)';
                     shape.style.transition = 'all 0.2s ease';
                 }
             }
@@ -787,7 +913,6 @@ class NodeManager {
                 const shape = nodeGroup.querySelector('circle, rect, polygon');
                 if (shape) {
                     shape.style.filter = 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))';
-                    shape.style.transform = 'scale(1)';
                 }
             }
         });
@@ -836,8 +961,8 @@ class NodeManager {
         
         // Position input over node
         const rect = this.canvas.getBoundingClientRect();
-        const canvasX = rect.left + (node.x - this.viewBox.x) * rect.width / this.viewBox.width;
-        const canvasY = rect.top + (node.y - this.viewBox.y) * rect.height / this.viewBox.height;
+        const canvasX = rect.left + (node.x - this.mindMap.viewBox.x) * rect.width / this.mindMap.viewBox.width;
+        const canvasY = rect.top + (node.y - this.mindMap.viewBox.y) * rect.height / this.mindMap.viewBox.height;
         
         input.style.left = (canvasX - 60) + 'px';
         input.style.top = (canvasY - 10) + 'px';

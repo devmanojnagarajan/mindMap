@@ -1167,11 +1167,12 @@ class MindMap {
     onMouseDown(e) {
         // Check if clicking on empty canvas area (not on nodes, connections, or interactive elements)
         if (!e.target.closest('.node') && 
+            !e.target.closest('.node-group') &&
             !e.target.closest('.connection-line') && 
             !e.target.closest('.connection-overlay') &&
             !e.target.closest('.control-point-handle') && 
             !e.target.closest('.node-inner-hit-area') &&
-            !e.target.closest('.node-outer-hit-area') &&
+            !e.target.closest('.node-outer-hit-group') &&
             e.target.tagName.toLowerCase() !== 'path') {
             
             // Deselect all connections when clicking on empty space
