@@ -85,9 +85,18 @@ class ConnectionManager {
             worldPos.y
         );
         
-        // Visual update
-        this.dragTarget.handle.setAttribute('transform', 
-            `translate(${worldPos.x}, ${worldPos.y})`);
+        // Visual update - handle both circle and group elements
+        if (this.dragTarget.handle.setAttribute) {
+            if (this.dragTarget.handle.tagName === 'circle') {
+                // Direct circle - update cx, cy
+                this.dragTarget.handle.setAttribute('cx', worldPos.x);
+                this.dragTarget.handle.setAttribute('cy', worldPos.y);
+            } else {
+                // Group element - update transform
+                this.dragTarget.handle.setAttribute('transform', 
+                    `translate(${worldPos.x}, ${worldPos.y})`);
+            }
+        }
         
         // Throttled connection render
         this.scheduleConnectionRender(this.dragTarget.connectionId);
@@ -268,6 +277,7 @@ class ConnectionManager {
         
         // Add interaction
         overlay.addEventListener('click', (e) => this.handleConnectionClick(e, connectionId));
+        overlay.addEventListener('contextmenu', (e) => this.handleConnectionContextMenu(e, connectionId));
         
         // Add to DOM
         this.connectionLayer.appendChild(path);
@@ -285,6 +295,13 @@ class ConnectionManager {
         
         const worldPos = this.screenToWorldCoords(event.clientX, event.clientY);
         this.addControlPoint(connectionId, worldPos.x, worldPos.y);
+    }
+    
+    handleConnectionContextMenu(event, connectionId) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        this.showConnectionContextMenu(event, connectionId);
     }
     
     // Control Points
@@ -324,42 +341,54 @@ class ConnectionManager {
     }
     
     createControlPointHandle(connectionId, point, index) {
-        const handle = this.createSVGElement('g', {
-            class: 'control-point-handle',
-            'data-connection-id': connectionId,
-            'data-point-id': point.id,
-            transform: `translate(${point.x}, ${point.y})`
+        // Use the same direct approach as the working red test circle
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', point.x);
+        circle.setAttribute('cy', point.y);
+        circle.setAttribute('r', '15');
+        circle.setAttribute('fill', '#FF6B35');
+        circle.setAttribute('stroke', 'white');
+        circle.setAttribute('stroke-width', '3');
+        circle.setAttribute('class', 'control-point-circle');
+        circle.setAttribute('data-connection-id', connectionId);
+        circle.setAttribute('data-point-id', point.id);
+        circle.style.cursor = 'move';
+        circle.style.opacity = '1';
+        
+        // Add directly to connection layer (we know this works)
+        this.connectionLayer.appendChild(circle);
+        
+        // Add simple drag behavior directly to the circle
+        this.addSimpleControlPointBehaviors(circle, connectionId, point.id);
+        
+        return circle;
+    }
+    
+    addSimpleControlPointBehaviors(circle, connectionId, pointId) {
+        // Simple double-click to delete
+        let clickCount = 0;
+        circle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clickCount++;
+            
+            if (clickCount === 1) {
+                setTimeout(() => { clickCount = 0; }, 300);
+            } else if (clickCount === 2) {
+                this.deleteControlPoint(connectionId, pointId);
+            }
         });
         
-        // Visual circle
-        const circle = this.createSVGElement('circle', {
-            class: 'control-point-circle',
-            r: '12',
-            fill: '#FF6B35',
-            stroke: '#FFFFFF',
-            'stroke-width': '3'
+        // Simple drag
+        circle.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            this.isDragging = true;
+            this.dragTarget = { connectionId, pointId, handle: circle };
+            
+            circle.setPointerCapture(e.pointerId);
+            circle.style.filter = 'drop-shadow(0 0 15px rgba(255, 107, 53, 0.8))';
         });
-        circle.style.filter = 'drop-shadow(0 3px 6px rgba(255,107,53,0.5))';
-        
-        // Hit area
-        const hitArea = this.createSVGElement('circle', {
-            class: 'control-point-hit-area',
-            r: '20',
-            fill: 'transparent'
-        });
-        hitArea.style.cursor = 'move';
-        hitArea.style.pointerEvents = 'all';
-        
-        handle.appendChild(circle);
-        handle.appendChild(hitArea);
-        
-        this.addControlPointBehaviors(handle, hitArea, connectionId, point.id);
-        this.controlLayer.appendChild(handle);
-        
-        // Animate in
-        this.animateIn(handle, index);
-        
-        return handle;
     }
     
     addControlPointBehaviors(handle, hitArea, connectionId, pointId) {
@@ -530,24 +559,32 @@ class ConnectionManager {
     }
     
     animateIn(element, delay = 0) {
+        // Use SVG-compatible animation instead of CSS transform
         element.style.opacity = '0';
-        element.style.transform = element.getAttribute('transform') + ' scale(0)';
-        element.style.transition = 'all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        element.style.transition = 'opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';
+        
+        // Add scale animation using SVG transform
+        const originalTransform = element.getAttribute('transform');
+        element.setAttribute('transform', originalTransform + ' scale(0)');
         
         setTimeout(() => {
             element.style.opacity = '1';
-            element.style.transform = element.getAttribute('transform') + ' scale(1)';
+            element.setAttribute('transform', originalTransform + ' scale(1)');
             
             setTimeout(() => {
                 element.style.transition = '';
+                element.setAttribute('transform', originalTransform); // Clean up transform
             }, 300);
         }, delay * 100);
     }
     
     animateOut(element, callback) {
-        element.style.transition = 'all 0.3s ease-out';
-        element.style.transform = element.getAttribute('transform') + ' scale(0)';
+        element.style.transition = 'opacity 0.3s ease-out';
         element.style.opacity = '0';
+        
+        // Use SVG transform for scale
+        const originalTransform = element.getAttribute('transform');
+        element.setAttribute('transform', originalTransform + ' scale(0)');
         
         setTimeout(() => {
             if (element.parentNode) {
@@ -608,6 +645,97 @@ class ConnectionManager {
         document.removeEventListener('keydown', this.handleKeydown);
         
         this.clearAllConnections();
+    }
+    
+    showConnectionContextMenu(event, connectionId) {
+        // Remove existing context menu
+        const existingMenu = document.querySelector('.connection-context-menu');
+        if (existingMenu) existingMenu.remove();
+        
+        const controlData = this.controlPoints.get(connectionId);
+        const hasControlPoints = controlData && controlData.points.length > 0;
+        
+        const menu = document.createElement('div');
+        menu.className = 'context-menu connection-context-menu';
+        menu.style.position = 'absolute';
+        menu.style.left = event.clientX + 'px';
+        menu.style.top = event.clientY + 'px';
+        menu.style.zIndex = '10000';
+        
+        const menuItems = [
+            { 
+                text: '🎯 Add Control Point', 
+                action: () => {
+                    const worldPos = this.screenToWorldCoords(event.clientX, event.clientY);
+                    this.addControlPoint(connectionId, worldPos.x, worldPos.y);
+                },
+                enabled: !controlData || controlData.points.length < 2
+            },
+            { 
+                text: hasControlPoints ? '👁️ Hide Control Points' : '👁️ Show Control Points', 
+                action: () => {
+                    if (hasControlPoints && controlData.visible) {
+                        this.hideAllControlPoints();
+                    } else {
+                        this.showControlPoints(connectionId);
+                    }
+                }
+            },
+            { text: '---', separator: true },
+            { 
+                text: '🗑️ Delete Connection', 
+                action: () => this.deleteConnection(connectionId),
+                style: 'color: #F43F5E;'
+            }
+        ];
+        
+        menuItems.forEach(item => {
+            if (item.separator) {
+                const separator = document.createElement('div');
+                separator.className = 'context-menu-separator';
+                separator.style.height = '1px';
+                separator.style.background = '#555';
+                separator.style.margin = '5px 0';
+                menu.appendChild(separator);
+            } else {
+                const menuItem = document.createElement('button');
+                menuItem.className = 'context-menu-item';
+                menuItem.textContent = item.text;
+                menuItem.disabled = item.enabled === false;
+                if (item.style) menuItem.style.cssText += item.style;
+                
+                menuItem.addEventListener('click', () => {
+                    item.action();
+                    menu.remove();
+                });
+                
+                menu.appendChild(menuItem);
+            }
+        });
+        
+        document.body.appendChild(menu);
+        
+        // Remove menu on click outside or escape
+        const removeMenu = (e) => {
+            if (!menu.contains(e.target)) {
+                menu.remove();
+                document.removeEventListener('click', removeMenu);
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                menu.remove();
+                document.removeEventListener('click', removeMenu);
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        
+        setTimeout(() => {
+            document.addEventListener('click', removeMenu);
+            document.addEventListener('keydown', handleEscape);
+        }, 10);
     }
 }
 

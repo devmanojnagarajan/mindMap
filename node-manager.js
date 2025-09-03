@@ -602,19 +602,16 @@ class NodeManager {
         e.preventDefault();
         e.stopPropagation();
         
-        console.log('🔗 CONNECTION START:', node.id, 'at position', {x: node.x, y: node.y});
-        
         // CRITICAL: Disable any potential node dragging during connection creation
         this.isDragging = false;
         this.dragTarget = null;
         
-        // Get starting node position - use simple node center instead of edge calculation
+        // Get starting node position
         const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
         const rect = this.canvas.getBoundingClientRect();
         
-        // Use node center for simplicity to avoid coordinate calculation issues
+        // Use node center as start point
         const startPoint = { x: node.x, y: node.y };
-        console.log('🔗 Using node center as start point:', startPoint);
         
         // Visual feedback - highlight source node (using only filter to avoid transform conflicts)
         nodeGroup.style.filter = 'drop-shadow(0 0 12px rgba(59, 130, 246, 0.8)) brightness(1.1)';
@@ -680,31 +677,33 @@ class NodeManager {
                 }
             }
             
-            // Create connection if dropped on valid target
+            // Create connection if dropped on valid target OR create new node if dropped on empty space
             if (currentTarget) {
                 const targetNode = this.nodes.get(currentTarget);
                 if (targetNode && this.mindMap.connectionManager) {
-                    console.log('🔗 CREATING CONNECTION:', node.id, '->', currentTarget);
-                    console.log('🔗 From node pos:', {x: node.x, y: node.y});
-                    console.log('🔗 To node pos:', {x: targetNode.x, y: targetNode.y});
-                    
                     this.mindMap.connectionManager.createConnection(node, targetNode);
-                    
-                    // Brief success feedback
                     this.showConnectionFeedback(node, targetNode);
+                }
+            } else {
+                // Create new node at drop location
+                const mouseX = upEvent.clientX - rect.left;
+                const mouseY = upEvent.clientY - rect.top;
+                const worldX = this.mindMap.viewBox.x + (mouseX / rect.width) * this.mindMap.viewBox.width;
+                const worldY = this.mindMap.viewBox.y + (mouseY / rect.height) * this.mindMap.viewBox.height;
+                
+                // Create new node at drop position
+                const newNode = this.createNode(worldX, worldY, 'New Node');
+                
+                // Create connection to the new node
+                if (this.mindMap.connectionManager) {
+                    this.mindMap.connectionManager.createConnection(node, newNode);
+                    this.showConnectionFeedback(node, newNode);
                 }
             }
             
             // Clean up
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
-            
-            console.log('🔗 CONNECTION CLEANUP - final node positions:');
-            console.log('🔗 Source node:', node.id, {x: node.x, y: node.y});
-            if (currentTarget) {
-                const targetNode = this.nodes.get(currentTarget);
-                console.log('🔗 Target node:', currentTarget, {x: targetNode?.x, y: targetNode?.y});
-            }
         };
         
         document.addEventListener('mousemove', handleMouseMove);

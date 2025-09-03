@@ -1101,8 +1101,14 @@ class MindMap {
                         } else if (e.shiftKey) {
                             // Toggle control points visibility
                             console.log('👁️ Toggling control points for:', connection.id);
-                            if (this.controlPointsManager) {
-                                this.controlPointsManager.toggleControlPoints(connection.id);
+                            if (this.connectionManager) {
+                                // Toggle control points visibility
+                                const controlData = this.connectionManager.controlPoints.get(connection.id);
+                                if (controlData && controlData.visible) {
+                                    this.connectionManager.hideAllControlPoints();
+                                } else {
+                                    this.connectionManager.showControlPoints(connection.id);
+                                }
                             }
                         } else {
                             // Regular click - handle control points using new manager
@@ -2862,8 +2868,8 @@ class MindMap {
     }
 
     handleControlPointClick(event, connectionId) {
-        if (!this.controlPointsManager) {
-            console.error('⚠️ ControlPointsManager not initialized');
+        if (!this.connectionManager) {
+            console.error('⚠️ ConnectionManager not initialized');
             return;
         }
         
@@ -2879,7 +2885,7 @@ class MindMap {
         console.log('🎯 Adding control point at:', {worldX, worldY});
         
         // Use the new control points manager
-        const success = this.controlPointsManager.addControlPoint(connectionId, worldX, worldY);
+        const success = this.connectionManager.addControlPoint(connectionId, worldX, worldY);
         
         if (success) {
             this.showTemporaryFeedback('Control point added!', worldX, worldY, '#44ff44');

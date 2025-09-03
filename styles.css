@@ -377,6 +377,11 @@ body {
     cursor: grab;
 }
 
+#control-layer {
+    pointer-events: all;
+    z-index: 1000;
+}
+
 #canvas:active {
     cursor: grabbing;
 }
