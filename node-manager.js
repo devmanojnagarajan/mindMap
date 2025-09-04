@@ -572,7 +572,10 @@ class NodeManager {
         
         // Add event listeners for outer ring (connections)
         outerRing.addEventListener('pointerdown', (e) => {
-            this.handleNodeConnectionStart(e, node);
+            // Only handle left mouse button clicks on outer ring
+            if (e.button === 0) {
+                this.handleNodeConnectionStart(e, node);
+            }
         });
         
         // Show/hide connection indicator on hover
@@ -636,10 +639,22 @@ class NodeManager {
             // Update drag line
             dragLine.setAttribute('d', `M ${startPoint.x} ${startPoint.y} L ${worldMouseX} ${worldMouseY}`);
             
+            // Temporarily hide drag line for accurate hit detection
+            const originalDisplay = dragLine.style.display;
+            dragLine.style.display = 'none';
+            
             // Check for potential drop targets
             const element = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
             const targetNodeGroup = element?.closest('[data-node-id]');
             const targetNodeId = targetNodeGroup?.getAttribute('data-node-id');
+            
+            // Restore drag line
+            dragLine.style.display = originalDisplay;
+            
+            // Debug logging (can be removed for production)
+            if (targetNodeId && targetNodeId !== node.id) {
+                console.debug('🎯 Target node detected:', targetNodeId);
+            }
             
             // Update target highlighting
             if (currentTarget && currentTarget !== targetNodeId) {
@@ -659,6 +674,16 @@ class NodeManager {
             }
             
             currentTarget = (targetNodeId && targetNodeId !== node.id) ? targetNodeId : null;
+            
+            // Debug logging for target detection
+            if (currentTarget !== prevTarget) {
+                console.log('🎯 Current target changed:', {
+                    from: prevTarget,
+                    to: currentTarget,
+                    detectedNodeId: targetNodeId,
+                    sourceNodeId: node.id
+                });
+            }
         };
         
         const handleMouseUp = (upEvent) => {
@@ -682,6 +707,8 @@ class NodeManager {
                 if (targetNode && this.mindMap.connectionManager) {
                     this.mindMap.connectionManager.createConnection(node, targetNode);
                     this.showConnectionFeedback(node, targetNode);
+                } else {
+                    console.warn('Target node or connection manager not found:', { targetNode: !!targetNode, connectionManager: !!this.mindMap.connectionManager });
                 }
             } else {
                 // Create new node at drop location
@@ -783,21 +810,35 @@ class NodeManager {
         e.preventDefault();
         e.stopPropagation();
         
-        this.isDragging = true;
+        // Check for middle mouse button - use for connection creation from anywhere on the node
+        if (e.button === 1) {
+            this.handleNodeConnectionStart(e, node);
+            return;
+        }
+        
+        // Only proceed with normal interaction for left mouse button
+        if (e.button !== 0) return;
+        
+        // Don't set isDragging immediately - wait for actual movement
         this.dragTarget = node;
+        this.isDragging = false; // Will be set to true only when actual dragging starts
         
         const rect = this.canvas.getBoundingClientRect();
         this.dragStartPos.x = e.clientX - rect.left;
         this.dragStartPos.y = e.clientY - rect.top;
         
-        // Calculate drag offset
+        // Calculate drag offset for when dragging actually starts
         const worldMouseX = this.mindMap.viewBox.x + (this.dragStartPos.x / rect.width) * this.mindMap.viewBox.width;
         const worldMouseY = this.mindMap.viewBox.y + (this.dragStartPos.y / rect.height) * this.mindMap.viewBox.height;
         
         this.dragOffset.x = worldMouseX - node.x;
         this.dragOffset.y = worldMouseY - node.y;
         
-        // Handle selection
+        // Store initial position to detect if dragging actually occurs
+        this.initialPointerPos = { x: e.clientX, y: e.clientY };
+        this.dragThreshold = 5; // pixels - minimum movement to start dragging
+        
+        // Handle selection immediately on mouse down (not on drag)
         if (e.ctrlKey || e.metaKey) {
             this.toggleNodeSelection(node);
         } else if (!this.selectedNodes.has(node.id)) {
@@ -820,14 +861,31 @@ class NodeManager {
         document.addEventListener('pointermove', handleMove);
         document.addEventListener('pointerup', handleUp);
         
-        console.log('🖱️ Node drag started:', node.id);
+        console.log('🖱️ Node pointer down:', node.id);
     }
 
     /**
      * Handle node pointer move (drag)
      */
     handleNodePointerMove(e, node) {
-        if (!this.isDragging || !this.dragTarget) return;
+        if (!this.dragTarget) return;
+        
+        // Check if we should start dragging based on movement threshold
+        if (!this.isDragging && this.initialPointerPos) {
+            const deltaX = e.clientX - this.initialPointerPos.x;
+            const deltaY = e.clientY - this.initialPointerPos.y;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            if (distance < this.dragThreshold) {
+                return; // Not enough movement to start dragging yet
+            }
+            
+            // Start dragging
+            this.isDragging = true;
+            console.log('🖱️ Node drag started:', node.id);
+        }
+        
+        if (!this.isDragging) return;
         
         const rect = this.canvas.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
@@ -862,10 +920,19 @@ class NodeManager {
      * Handle node pointer up (end drag)
      */
     handleNodePointerUp(e, node) {
-        if (!this.isDragging) return;
+        e.preventDefault();
+        e.stopPropagation();
         
+        // Clean up drag state regardless of whether dragging actually occurred
+        const wasDragging = this.isDragging;
         this.isDragging = false;
         this.dragTarget = null;
+        this.initialPointerPos = null;
+        
+        if (!wasDragging) {
+            // This was just a click, not a drag - no need for connection updates
+            return;
+        }
         
         // Release pointer capture
         const nodeGroup = e.target.closest('.node-group');
@@ -998,8 +1065,14 @@ class NodeManager {
      * Select a node
      */
     selectNode(node, multiSelect = false) {
+        console.log('🎯 NodeManager.selectNode() called for node:', node.id, 'multiSelect:', multiSelect);
+        
+        // Set timestamp to prevent immediate clearing
+        this.lastNodeSelectionTime = Date.now();
+        
         if (!multiSelect) {
-            this.deselectAllNodes();
+            // Deselect nodes without closing the panel - we'll open it for the new node
+            this.deselectAllNodesWithoutClosingPanel();
         }
         
         this.selectedNodes.add(node.id);
@@ -1008,7 +1081,8 @@ class NodeManager {
         
         // Open properties panel for the selected node
         if (this.mindMap.panelManager) {
-            this.mindMap.panelManager.openNodePanel(node);
+            console.log('🎛️ Opening panel for node:', node.id);
+            this.mindMap.panelManager.open(node);
         }
         
         console.log('🎯 Node selected:', node.id);
@@ -1049,10 +1123,29 @@ class NodeManager {
         
         // Close properties panel when no nodes are selected
         if (this.mindMap.panelManager) {
-            this.mindMap.panelManager.closeNodePanel();
+            this.mindMap.panelManager.forceClose();
         }
         
         console.log('🔄 All nodes deselected');
+    }
+    
+    /**
+     * Deselect all nodes without closing the properties panel
+     * (used when switching to a new node selection)
+     */
+    deselectAllNodesWithoutClosingPanel() {
+        console.log('🔄 Deselecting all nodes without closing panel');
+        
+        this.selectedNodes.forEach(nodeId => {
+            const node = this.nodes.get(nodeId);
+            if (node) this.unhighlightNode(node);
+        });
+        
+        this.selectedNodes.clear();
+        this.selectedNode = null;
+        
+        // Don't close the panel - we're switching to a new node
+        console.log('🔄 All nodes deselected (panel kept open)');
     }
 
     /**
@@ -1120,7 +1213,16 @@ class NodeManager {
     /**
      * Clear all selections
      */
-    clearSelection() {
+    clearSelection(force = false) {
+        console.log('🔄 NodeManager.clearSelection() called, force:', force);
+        console.trace('clearSelection call stack:');
+        
+        // Check if we recently selected a node (within last 1 second) and not forced
+        if (!force && this.lastNodeSelectionTime && (Date.now() - this.lastNodeSelectionTime) < 1000) {
+            console.log('🛡️ Ignoring clearSelection - node was just selected');
+            return;
+        }
+        
         // Clear multi-selection
         this.selectedNodes.forEach(nodeId => {
             const node = this.nodes.get(nodeId);
@@ -1142,7 +1244,7 @@ class NodeManager {
         
         // Close properties panel
         if (this.mindMap.panelManager) {
-            this.mindMap.panelManager.closeNodePanel();
+            this.mindMap.panelManager.forceClose();
         }
         
         console.log('🔄 All selections cleared');
@@ -1269,7 +1371,7 @@ class NodeManager {
     openNodeCustomization(node) {
         this.selectNode(node);
         if (this.mindMap.panelManager) {
-            this.mindMap.panelManager.openNodePanel(node);
+            this.mindMap.panelManager.open(node);
         }
     }
 

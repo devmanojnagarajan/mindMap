@@ -79,6 +79,9 @@ class MindMap {
         // Create separate layers for proper z-ordering
         const defs = this.canvas.querySelector('defs');
         
+        // Re-create essential UI elements that might have been removed
+        this.createEssentialUIElements();
+        
         // Create connection layer (should be behind nodes)
         this.connectionLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.connectionLayer.setAttribute('id', 'connection-layer');
@@ -94,6 +97,41 @@ class MindMap {
         this.controlLayer.setAttribute('id', 'control-layer');
         this.canvas.appendChild(this.controlLayer);
         
+    }
+    
+    createEssentialUIElements() {
+        // Recreate drag connection line if it doesn't exist
+        if (!this.canvas.querySelector('#drag-connection')) {
+            const dragConnection = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            dragConnection.setAttribute('id', 'drag-connection');
+            dragConnection.setAttribute('d', '');
+            dragConnection.setAttribute('stroke', '#3498db');
+            dragConnection.setAttribute('stroke-width', '3');
+            dragConnection.setAttribute('fill', 'none');
+            dragConnection.setAttribute('stroke-dasharray', '8,4');
+            dragConnection.setAttribute('marker-end', 'url(#arrowhead)');
+            dragConnection.style.display = 'none';
+            dragConnection.style.pointerEvents = 'none';
+            this.canvas.appendChild(dragConnection);
+            this.dragConnectionLine = dragConnection;
+        }
+        
+        // Recreate selection rectangle if it doesn't exist
+        if (!this.canvas.querySelector('#selection-rectangle')) {
+            const selectionRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            selectionRect.setAttribute('id', 'selection-rectangle');
+            selectionRect.setAttribute('x', '0');
+            selectionRect.setAttribute('y', '0');
+            selectionRect.setAttribute('width', '0');
+            selectionRect.setAttribute('height', '0');
+            selectionRect.setAttribute('fill', 'rgba(33, 150, 243, 0.2)');
+            selectionRect.setAttribute('stroke', '#2196F3');
+            selectionRect.setAttribute('stroke-width', '1');
+            selectionRect.setAttribute('stroke-dasharray', '5,5');
+            selectionRect.style.display = 'none';
+            this.canvas.appendChild(selectionRect);
+            this.selectionRectangle = selectionRect;
+        }
     }
 
     setupEventListeners() {
@@ -124,7 +162,11 @@ class MindMap {
                     this.deleteNode(this.selectedNode);
                 }
             } else if (e.key === 'Escape') {
-                this.clearSelection();
+                if (this.nodeManager) {
+                    this.nodeManager.clearSelection(true); // Force clear
+                } else {
+                    this.clearSelection();
+                }
                 this.isConnectMode = false;
                 this.updateConnectModeButton();
                 if (this.connectionManager) {
@@ -976,9 +1018,28 @@ class MindMap {
                 // User dragged - perform selection
                 this.finishSelection();
             } else {
-                // User just clicked - clear selection and potentially start panning on next drag
+                // User just clicked - clear selection only if not clicking on a node
                 if (!e.ctrlKey) {
-                    this.clearSelection();
+                    const clickedElement = e.target;
+                    const isNodeClick = clickedElement.closest('[data-node-id]') || 
+                                       clickedElement.closest('.node-group') ||
+                                       clickedElement.closest('.node-inner-hit-area') ||
+                                       clickedElement.closest('.node-outer-hit-group');
+                    
+                    console.log('🖱️ Canvas click detected:', {
+                        target: clickedElement,
+                        tagName: clickedElement.tagName,
+                        className: clickedElement.className,
+                        isNodeClick: isNodeClick,
+                        willClearSelection: !isNodeClick
+                    });
+                    
+                    if (!isNodeClick) {
+                        console.log('🧹 Calling clearSelection() from canvas click');
+                        this.clearSelection();
+                    } else {
+                        console.log('🎯 Node click detected, NOT clearing selection');
+                    }
                 }
                 this.selectionRectangle.style.display = 'none';
             }

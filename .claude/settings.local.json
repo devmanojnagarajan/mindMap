@@ -14,7 +14,8 @@
       "Bash(start http://localhost:8000/)",
       "Bash(sed:*)",
       "Bash(grep:*)",
-      "Bash(start http://localhost:8080)"
+      "Bash(start http://localhost:8080)",
+      "Bash(del *.tmp.*)"
     ],
     "deny": [],
     "ask": []

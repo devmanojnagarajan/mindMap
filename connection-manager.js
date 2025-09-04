@@ -404,12 +404,16 @@ class ConnectionManager {
     
     addControlPointDragBehavior(element, connectionId, pointId) {
         let isDragging = false;
+        let wasDragged = false;
+        let startPos = null;
         
         element.addEventListener('pointerdown', (e) => {
             e.stopPropagation();
             e.preventDefault();
             
             isDragging = true;
+            wasDragged = false;
+            startPos = { x: e.clientX, y: e.clientY };
             this.isDragging = true;
             this.dragTarget = { connectionId, pointId, handle: element };
             
@@ -419,6 +423,16 @@ class ConnectionManager {
         
         element.addEventListener('pointermove', (e) => {
             if (!isDragging) return;
+            
+            // Check if we've moved enough to consider this a drag
+            if (startPos && !wasDragged) {
+                const deltaX = e.clientX - startPos.x;
+                const deltaY = e.clientY - startPos.y;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > 3) { // 3 pixel threshold
+                    wasDragged = true;
+                }
+            }
             
             e.stopPropagation();
             e.preventDefault();
@@ -445,19 +459,24 @@ class ConnectionManager {
             
             element.releasePointerCapture(e.pointerId);
             element.style.filter = '';
+            
+            // Reset drag flag after a small delay to allow click event to check it
+            setTimeout(() => {
+                wasDragged = false;
+            }, 10);
         });
         
-        // Double-click to delete
-        let clickCount = 0;
+        // Single-click to delete
         element.addEventListener('click', (e) => {
             e.stopPropagation();
-            clickCount++;
+            e.preventDefault();
             
-            if (clickCount === 1) {
-                setTimeout(() => { clickCount = 0; }, 300);
-            } else if (clickCount === 2) {
-                this.deleteControlPoint(connectionId, pointId);
+            // Don't delete if this was part of a drag operation
+            if (wasDragged) {
+                return;
             }
+            
+            this.deleteControlPoint(connectionId, pointId);
         });
     }
     
@@ -565,11 +584,16 @@ class ConnectionManager {
     }
     
     addControlPointBehaviors(handle, hitArea, connectionId, pointId) {
+        let wasDragged = false;
+        let startPos = null;
+        
         // Drag behavior
         hitArea.addEventListener('pointerdown', (e) => {
             e.stopPropagation();
             e.preventDefault();
             
+            wasDragged = false;
+            startPos = { x: e.clientX, y: e.clientY };
             this.isDragging = true;
             this.dragTarget = { connectionId, pointId, handle };
             
@@ -577,17 +601,39 @@ class ConnectionManager {
             handle.classList.add('dragging');
         });
         
-        // Delete on double-click
-        let clickCount = 0;
+        // Track movement to detect actual dragging
+        hitArea.addEventListener('pointermove', (e) => {
+            if (this.isDragging && startPos && !wasDragged) {
+                const deltaX = e.clientX - startPos.x;
+                const deltaY = e.clientY - startPos.y;
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > 3) { // 3 pixel threshold
+                    wasDragged = true;
+                }
+            }
+        });
+        
+        // Reset drag flag on pointer up
+        hitArea.addEventListener('pointerup', (e) => {
+            if (this.isDragging) {
+                // Reset drag flag after a small delay to allow click event to check it
+                setTimeout(() => {
+                    wasDragged = false;
+                }, 10);
+            }
+        });
+        
+        // Single-click to delete
         hitArea.addEventListener('click', (e) => {
             e.stopPropagation();
-            clickCount++;
+            e.preventDefault();
             
-            if (clickCount === 1) {
-                setTimeout(() => { clickCount = 0; }, 300);
-            } else if (clickCount === 2) {
-                this.deleteControlPoint(connectionId, pointId);
+            // Don't delete if this was part of a drag operation
+            if (wasDragged) {
+                return;
             }
+            
+            this.deleteControlPoint(connectionId, pointId);
         });
         
         // Hover effects

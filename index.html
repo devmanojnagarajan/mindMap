@@ -43,7 +43,7 @@
                     </defs>
                     <rect id="grid-background" x="-10000" y="-10000" width="20000" height="20000" fill="url(#grid)" />
                     <rect id="selection-rectangle" x="0" y="0" width="0" height="0" fill="rgba(33, 150, 243, 0.2)" stroke="#2196F3" stroke-width="1" stroke-dasharray="5,5" style="display: none;" />
-                    <path id="drag-connection" d="" stroke="#3498db" stroke-width="3" fill="none" stroke-dasharray="8,4" marker-end="url(#arrowhead)" style="display: none;" />
+                    <path id="drag-connection" d="" stroke="#3498db" stroke-width="3" fill="none" stroke-dasharray="8,4" marker-end="url(#arrowhead)" style="display: none; pointer-events: none;" />
                     <g id="add-node-indicator" style="display: none; cursor: pointer;">
                         <circle cx="0" cy="0" r="25" fill="rgba(52, 152, 219, 0.3)" stroke="#3498db" stroke-width="2" stroke-dasharray="5,3" pointer-events="all"/>
                         <text x="0" y="0" text-anchor="middle" dominant-baseline="central" fill="#3498db" font-size="12" font-family="var(--font-family)" pointer-events="none">Click to add</text>
@@ -227,10 +227,18 @@
         </div>
     </div>
     
-    <script src="node-manager.js?v=11"></script>
-    <script src="connection-manager.js?v=11"></script>
-    <script src="panel-manager.js?v=11"></script>
-    <script src="script.js?v=11"></script>
-    <script src="auth.js?v=11"></script>
+    <!-- Core modules -->
+    <script src="core/utils.js?v=15"></script>
+    <script src="core/event-emitter.js?v=15"></script>
+    <script src="core/config-manager.js?v=15"></script>
+    <script src="core/error-handler.js?v=15"></script>
+    <script src="core/base-manager.js?v=15"></script>
+    
+    <!-- Application modules -->
+    <script src="node-manager.js?v=15"></script>
+    <script src="connection-manager.js?v=15"></script>
+    <script src="panel-manager.js?v=15"></script>
+    <script src="script.js?v=15"></script>
+    <script src="auth.js?v=15"></script>
 </body>
 </html>

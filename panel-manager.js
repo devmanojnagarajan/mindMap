@@ -210,7 +210,10 @@ class PanelManager {
             return;
         }
         
+        // Opening panel for node
+        this.openedAt = Date.now();
         this.currentEditingNode = node;
+        console.log('🎛️ PanelManager.open() called at:', new Date(this.openedAt).toLocaleTimeString(), 'for node:', node.id);
         this.populatePanel(node);
         this.show();
     }
@@ -219,6 +222,35 @@ class PanelManager {
      * Close panel
      */
     close() {
+        console.log('🎛️ PanelManager.close() called at:', new Date().toLocaleTimeString());
+        console.log('🔍 Panel was opened at:', this.openedAt ? new Date(this.openedAt).toLocaleTimeString() : 'unknown');
+        if (this.openedAt) {
+            const timeSinceOpen = Date.now() - this.openedAt;
+            console.log('⏱️ Panel was open for:', timeSinceOpen + 'ms');
+            
+            // Log more details about what's trying to close the panel
+            console.log('🔍 Current editing node:', this.currentEditingNode?.id);
+            console.log('🔍 Panel display style:', this.panel.style.display);
+            
+            // Prevent unwanted closing if panel was just opened (within 5 seconds for more protection)
+            if (timeSinceOpen < 5000 && this.currentEditingNode) {
+                console.log('🛡️ Preventing premature panel close - panel was just opened');
+                console.log('🛡️ Blocking close attempt from:');
+                console.trace('Blocked close stack trace:');
+                return;
+            }
+        }
+        console.log('✅ Allowing panel close');
+        console.trace('Call stack for panel close:');
+        this.hide();
+        this.currentEditingNode = null;
+    }
+    
+    /**
+     * Force close panel (bypasses timing protection)
+     */
+    forceClose() {
+        console.log('🔥 PanelManager.forceClose() called - bypassing protection');
         this.hide();
         this.currentEditingNode = null;
     }
@@ -227,22 +259,28 @@ class PanelManager {
      * Show panel with animation
      */
     show() {
+        console.log('👁️ PanelManager.show() called');
         this.panel.style.display = 'block';
         // Trigger reflow for animation
         this.panel.offsetHeight;
         this.panel.style.opacity = '1';
         this.panel.style.transform = 'translateX(0)';
+        console.log('👁️ Panel shown with display: block, opacity: 1');
     }
     
     /**
      * Hide panel with animation
      */
     hide() {
+        console.log('🙈 PanelManager.hide() called');
+        console.trace('Hide panel stack trace:');
+        
         this.panel.style.opacity = '0';
         this.panel.style.transform = 'translateX(100%)';
         
         setTimeout(() => {
             this.panel.style.display = 'none';
+            console.log('🙈 Panel display set to none after animation');
         }, this.config.panelAnimationDuration);
     }
     

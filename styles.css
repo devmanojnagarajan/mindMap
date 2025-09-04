@@ -963,3 +963,187 @@ body {
     fill: #FF8C00;
     filter: drop-shadow(0 3px 6px rgba(255, 140, 0, 0.6));
 }
+
+/* Error Dialog Styles */
+.error-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.error-dialog__backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    animation: fadeIn 0.2s ease;
+}
+
+.error-dialog__content {
+    background: var(--secondary-bg);
+    border: 1px solid var(--node-stroke);
+    border-radius: 8px;
+    max-width: 500px;
+    width: 90%;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+    animation: slideInUp 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.error-dialog__header {
+    padding: 20px 24px 0;
+}
+
+.error-dialog__title {
+    color: var(--primary-text);
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.error-dialog__body {
+    padding: 16px 24px;
+}
+
+.error-dialog__message {
+    color: var(--secondary-text);
+    font-size: 14px;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.error-dialog__footer {
+    padding: 0 24px 20px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.error-dialog__button {
+    padding: 8px 16px;
+    border: 1px solid var(--node-stroke);
+    border-radius: 6px;
+    background: var(--node-bg);
+    color: var(--primary-text);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.error-dialog__button:hover {
+    background: var(--node-stroke);
+}
+
+.error-dialog__button--primary {
+    background: var(--error-color);
+    border-color: var(--error-color);
+}
+
+.error-dialog__button--primary:hover {
+    background: #dc2626;
+    border-color: #dc2626;
+}
+
+.error-dialog--closing {
+    animation: fadeOut 0.2s ease;
+}
+
+.error-dialog--closing .error-dialog__content {
+    animation: slideOutDown 0.2s ease;
+}
+
+/* Toast Styles */
+.error-toast {
+    font-family: var(--font-family);
+    font-size: 14px;
+}
+
+.error-toast__content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.error-toast__close {
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.error-toast__close:hover {
+    opacity: 1;
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideOutDown {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
