@@ -13,13 +13,14 @@ class MindMap {
         this.connectionControlPoints = new Map(); // Store custom control points for connections
         
         // Initialize managers after layers are created
-        console.log('⚡ Initializing managers in 100ms...');
         setTimeout(() => {
             try {
                 this.nodeManager = new NodeManager(this);
                 this.connectionManager = new ConnectionManager(this);
+                this.panelManager = new PanelManager(this);
                 console.log('🔵 NodeManager initialized successfully');
                 console.log('🔗 ConnectionManager initialized successfully');
+                console.log('🎛️ PanelManager initialized successfully');
                 
                 // Clear any stuck selections from fallback rendering
                 this.clearSelection();
@@ -27,7 +28,6 @@ class MindMap {
                 // Clean up any duplicate or orphaned nodes
                 this.cleanupDuplicateNodes();
                 
-                console.log('✅ All systems ready!');
                 
                 // Add root node only if no nodes exist
                 if (this.nodes.length === 0) {
@@ -62,12 +62,8 @@ class MindMap {
         this.nodeIdCounter = 0;
         this.minimap = document.getElementById('minimap');
         this.minimapBounds = { x: -1000, y: -1000, width: 2000, height: 2000 };
-        this.nodePanel = document.getElementById('node-panel');
-        this.currentEditingNode = null;
-        
         this.init();
         this.setupEventListeners();
-        this.setupPanelEventListeners();
         this.setupHelpTooltip();
         this.loadSharedMap();
         // Root node will be created after managers are initialized
@@ -98,10 +94,6 @@ class MindMap {
         this.controlLayer.setAttribute('id', 'control-layer');
         this.canvas.appendChild(this.controlLayer);
         
-        console.log('Layers initialized: connection, node, control');
-        console.log('Connection layer:', this.connectionLayer);
-        console.log('Node layer:', this.nodeLayer);
-        console.log('Control layer:', this.controlLayer);
     }
 
     setupEventListeners() {
@@ -172,108 +164,6 @@ class MindMap {
         });
     }
 
-    setupPanelEventListeners() {
-        // Close panel button
-        document.getElementById('close-panel').addEventListener('click', () => {
-            this.closeNodePanel();
-        });
-
-        // Image upload
-        document.getElementById('upload-image-btn').addEventListener('click', () => {
-            document.getElementById('image-upload').click();
-        });
-
-        document.getElementById('image-upload').addEventListener('change', (e) => {
-            this.handleImageUpload(e);
-        });
-
-        // Remove image
-        document.getElementById('remove-image').addEventListener('click', () => {
-            this.removeNodeImage();
-        });
-
-        // Image position
-        document.getElementById('image-position').addEventListener('change', (e) => {
-            this.updateNodeImagePosition(e.target.value);
-        });
-
-        // Text styling
-        document.getElementById('font-family').addEventListener('change', (e) => {
-            this.updateNodeStyle('fontFamily', e.target.value);
-        });
-
-        document.getElementById('font-size').addEventListener('input', (e) => {
-            const size = e.target.value;
-            document.getElementById('font-size-value').textContent = size + 'px';
-            this.updateNodeStyle('fontSize', parseInt(size));
-        });
-
-        document.getElementById('font-weight').addEventListener('change', (e) => {
-            this.updateNodeStyle('fontWeight', e.target.value);
-        });
-
-        document.getElementById('text-color').addEventListener('input', (e) => {
-            this.updateNodeStyle('textColor', e.target.value);
-        });
-
-        document.getElementById('text-align').addEventListener('change', (e) => {
-            this.updateNodeStyle('textAlign', e.target.value);
-        });
-
-        // Node colors
-        document.getElementById('node-bg-color').addEventListener('input', (e) => {
-            this.updateNodeStyle('backgroundColor', e.target.value);
-        });
-
-        document.getElementById('node-border-color').addEventListener('input', (e) => {
-            this.updateNodeStyle('borderColor', e.target.value);
-        });
-
-        // Shape controls
-        document.getElementById('node-shape').addEventListener('change', (e) => {
-            this.updateNodeShape('type', e.target.value);
-            this.toggleShapeControls(e.target.value);
-        });
-
-        document.getElementById('node-width').addEventListener('input', (e) => {
-            const width = e.target.value;
-            document.getElementById('node-width-value').textContent = width + 'px';
-            this.updateNodeShape('width', parseInt(width));
-        });
-
-        document.getElementById('node-height').addEventListener('input', (e) => {
-            const height = e.target.value;
-            document.getElementById('node-height-value').textContent = height + 'px';
-            this.updateNodeShape('height', parseInt(height));
-        });
-
-        document.getElementById('corner-radius').addEventListener('input', (e) => {
-            const radius = e.target.value;
-            document.getElementById('corner-radius-value').textContent = radius + 'px';
-            this.updateNodeShape('cornerRadius', parseInt(radius));
-        });
-
-        // Share functionality
-        document.getElementById('export-image').addEventListener('click', () => {
-            this.exportAsImage();
-        });
-
-        document.getElementById('copy-share-link').addEventListener('click', () => {
-            this.copyShareLink();
-        });
-
-        document.getElementById('export-json').addEventListener('click', () => {
-            this.exportAsJSON();
-        });
-
-        document.getElementById('import-json-btn').addEventListener('click', () => {
-            document.getElementById('import-json').click();
-        });
-
-        document.getElementById('import-json').addEventListener('change', (e) => {
-            this.importFromJSON(e);
-        });
-    }
 
     updateCanvasSize() {
         const container = document.getElementById('canvas-container');
@@ -285,11 +175,9 @@ class MindMap {
 
     cleanupDuplicateNodes() {
         console.log('🧹 Cleaning up duplicate nodes...');
-        console.log(`Current nodes in main array: ${this.nodes.length}`);
         
         // Remove all visual nodes from DOM
         const allNodeGroups = this.nodeLayer.querySelectorAll('[data-node-id]');
-        console.log(`Visual node groups found in DOM: ${allNodeGroups.length}`);
         
         allNodeGroups.forEach(group => {
             const nodeId = group.getAttribute('data-node-id');
@@ -308,7 +196,6 @@ class MindMap {
             console.log('🔄 NodeManager nodes cleared');
         }
         
-        console.log('✅ Duplicate nodes cleaned up');
     }
 
     createInitialSetup() {
@@ -329,7 +216,11 @@ class MindMap {
                 this.connectionManager.createConnection(centralNode, node2);
                 this.connectionManager.createConnection(centralNode, node3);
                 
-                console.log('✨ Sample setup complete! Try:');
+                // Force clear any default selections after creating connections
+                setTimeout(() => {
+                    this.connectionManager.deselectAllConnections();
+                }, 100);
+                
                 console.log('  • Click on connections to add orange control points');
                 console.log('  • Alt+Click on connections to add green interpolation points');
                 console.log('  • Right-click on connections for more options');
@@ -554,155 +445,15 @@ class MindMap {
         });
     }
 
-    openNodePanel(node) {
-        this.currentEditingNode = node;
-        this.populatePanelWithNodeData(node);
-        this.nodePanel.style.display = 'block';
-    }
 
-    closeNodePanel() {
-        this.nodePanel.style.display = 'none';
-        this.currentEditingNode = null;
-    }
 
-    populatePanelWithNodeData(node) {
-        // Ensure node has shape property (backward compatibility)
-        if (!node.shape) {
-            node.shape = {
-                type: 'circle',
-                width: 80,
-                height: 80,
-                cornerRadius: 15
-            };
-        }
 
-        // Update image preview
-        if (node.image) {
-            document.getElementById('preview-img').src = node.image;
-            document.getElementById('image-preview').style.display = 'block';
-            document.getElementById('image-position').value = node.imagePosition;
-        } else {
-            document.getElementById('image-preview').style.display = 'none';
-        }
 
-        // Update text styling controls
-        document.getElementById('font-family').value = node.style.fontFamily;
-        document.getElementById('font-size').value = node.style.fontSize;
-        document.getElementById('font-size-value').textContent = node.style.fontSize + 'px';
-        document.getElementById('font-weight').value = node.style.fontWeight;
-        document.getElementById('text-color').value = node.style.textColor;
-        document.getElementById('text-align').value = node.style.textAlign;
 
-        // Update node color controls
-        document.getElementById('node-bg-color').value = node.style.backgroundColor;
-        document.getElementById('node-border-color').value = node.style.borderColor;
 
-        // Update shape controls
-        document.getElementById('node-shape').value = node.shape.type;
-        document.getElementById('node-width').value = node.shape.width;
-        document.getElementById('node-width-value').textContent = node.shape.width + 'px';
-        document.getElementById('node-height').value = node.shape.height;
-        document.getElementById('node-height-value').textContent = node.shape.height + 'px';
-        document.getElementById('corner-radius').value = node.shape.cornerRadius;
-        document.getElementById('corner-radius-value').textContent = node.shape.cornerRadius + 'px';
-        
-        this.toggleShapeControls(node.shape.type);
-    }
 
-    handleImageUpload(e) {
-        const file = e.target.files[0];
-        if (!file || !this.currentEditingNode) return;
 
-        this.compressAndResizeImage(file, (compressedDataUrl) => {
-            this.currentEditingNode.image = compressedDataUrl;
-            document.getElementById('preview-img').src = compressedDataUrl;
-            document.getElementById('image-preview').style.display = 'block';
-            this.renderNode(this.currentEditingNode, true);
-        });
-    }
 
-    compressAndResizeImage(file, callback) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-
-        img.onload = () => {
-            // Calculate new dimensions (max 100x100 while maintaining aspect ratio)
-            const maxSize = 100;
-            let { width, height } = img;
-            
-            if (width > height) {
-                if (width > maxSize) {
-                    height = (height * maxSize) / width;
-                    width = maxSize;
-                }
-            } else {
-                if (height > maxSize) {
-                    width = (width * maxSize) / height;
-                    height = maxSize;
-                }
-            }
-
-            canvas.width = width;
-            canvas.height = height;
-            
-            // Draw and compress
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-            callback(compressedDataUrl);
-        };
-
-        img.src = URL.createObjectURL(file);
-    }
-
-    removeNodeImage() {
-        if (!this.currentEditingNode) return;
-        
-        this.currentEditingNode.image = null;
-        document.getElementById('image-preview').style.display = 'none';
-        document.getElementById('image-upload').value = '';
-        this.renderNode(this.currentEditingNode, true);
-    }
-
-    updateNodeImagePosition(position) {
-        if (!this.currentEditingNode) return;
-        
-        this.currentEditingNode.imagePosition = position;
-        this.renderNode(this.currentEditingNode, true);
-    }
-
-    updateNodeStyle(property, value) {
-        if (!this.currentEditingNode) return;
-        
-        this.currentEditingNode.style[property] = value;
-        this.renderNode(this.currentEditingNode, true);
-    }
-
-    updateNodeShape(property, value) {
-        if (!this.currentEditingNode) return;
-        
-        this.currentEditingNode.shape[property] = value;
-        this.renderNode(this.currentEditingNode, true);
-    }
-
-    toggleShapeControls(shapeType) {
-        const cornerRadiusControl = document.getElementById('corner-radius-control');
-        const sizeControls = document.getElementById('size-controls');
-        
-        // Show corner radius control only for rounded rectangle
-        if (shapeType === 'rounded-rectangle') {
-            cornerRadiusControl.style.display = 'flex';
-        } else {
-            cornerRadiusControl.style.display = 'none';
-        }
-        
-        // Show size controls for all shapes except circle
-        if (shapeType === 'circle') {
-            sizeControls.style.display = 'none';
-        } else {
-            sizeControls.style.display = 'flex';
-        }
-    }
 
     createShapeElement(shapeType, width, height, cornerRadius = 0) {
         const element = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -797,120 +548,9 @@ class MindMap {
     }
 
     // Share functionality methods
-    exportAsImage() {
-        // Create a temporary canvas for export
-        const svg = this.canvas.cloneNode(true);
-        const serializer = new XMLSerializer();
-        const svgString = serializer.serializeToString(svg);
-        
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-        
-        canvas.width = this.canvas.clientWidth;
-        canvas.height = this.canvas.clientHeight;
-        
-        img.onload = () => {
-            ctx.drawImage(img, 0, 0);
-            
-            // Download the image
-            const link = document.createElement('a');
-            link.download = 'mindmap.png';
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        };
-        
-        const svgBlob = new Blob([svgString], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(svgBlob);
-        img.src = url;
-    }
 
-    async copyShareLink() {
-        // Generate a shareable link with the current map data
-        const mapData = {
-            nodes: this.nodes,
-            connections: this.connections,
-            timestamp: Date.now()
-        };
-        
-        const compressedData = btoa(JSON.stringify(mapData));
-        const shareUrl = `${window.location.origin}${window.location.pathname}?data=${compressedData}`;
-        
-        try {
-            await navigator.clipboard.writeText(shareUrl);
-            // Show notification (you might want to use a notification library)
-            console.log('Share link copied to clipboard!');
-            alert('Share link copied to clipboard!');
-        } catch (err) {
-            console.error('Failed to copy link:', err);
-            alert('Failed to copy link. Please copy manually: ' + shareUrl);
-        }
-    }
 
-    exportAsJSON() {
-        const mapData = {
-            nodes: this.nodes,
-            connections: this.connections,
-            viewBox: this.viewBox,
-            zoomLevel: this.zoomLevel,
-            timestamp: Date.now(),
-            version: '1.0'
-        };
-        
-        const dataStr = JSON.stringify(mapData, null, 2);
-        const dataBlob = new Blob([dataStr], { type: 'application/json' });
-        
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(dataBlob);
-        link.download = 'mindmap.json';
-        link.click();
-    }
 
-    importFromJSON(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const mapData = JSON.parse(e.target.result);
-                
-                // Clear existing map
-                this.nodes = [];
-                this.connections = [];
-                this.nodeLayer.innerHTML = '';
-                this.connectionLayer.innerHTML = '';
-                
-                // Load nodes
-                this.nodes = mapData.nodes || [];
-                this.connections = mapData.connections || [];
-                this.nodeIdCounter = Math.max(...this.nodes.map(n => parseInt(n.id.split('_')[1]) || 0)) + 1;
-                
-                // Render all nodes
-                this.nodes.forEach(node => this.renderNode(node));
-                this.renderConnections();
-                
-                // Restore view settings if available
-                if (mapData.viewBox) {
-                    this.viewBox = mapData.viewBox;
-                    this.updateViewBox();
-                }
-                if (mapData.zoomLevel) {
-                    this.zoomLevel = mapData.zoomLevel;
-                }
-                
-                console.log('Mind map imported successfully!');
-                alert('Mind map imported successfully!');
-                
-            } catch (error) {
-                console.error('Failed to import mind map:', error);
-                alert('Failed to import mind map. Please check the file format.');
-            }
-        };
-        
-        reader.readAsText(file);
-        event.target.value = ''; // Reset file input
-    }
 
     setupHelpTooltip() {
         const helpTooltip = document.getElementById('control-point-help');
@@ -1182,7 +822,6 @@ class MindMap {
             e.target.tagName.toLowerCase() !== 'path') {
             
             // Deselect all connections when clicking on empty space
-            console.log('🖱️ Clicking on empty canvas area - deselecting connections');
             this.deselectAllConnections();
             
             const rect = this.canvas.getBoundingClientRect();
@@ -2216,7 +1855,6 @@ class MindMap {
     }
 
     deselectAllConnections() {
-        console.log('Deselecting all connections');
         this.hideAllControlPoints();
         // Re-render connections to update their visual state
         this.renderConnections();
@@ -2254,7 +1892,6 @@ class MindMap {
     createControlPointHandle(connectionId, pointId, x, y, label) {
         console.log('🔧 createControlPointHandle called');
         console.log('Parameters:', {connectionId, pointId, x, y, label});
-        console.log('Control layer exists:', !!this.controlLayer);
         
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         handle.setAttribute('class', 'control-point-handle');
@@ -2316,8 +1953,6 @@ class MindMap {
         // Add to control layer (above everything else)
         try {
             this.controlLayer.appendChild(handle);
-            console.log('✅ Control point handle successfully added to control layer');
-            console.log('Control layer children count:', this.controlLayer.children.length);
             console.log('Handle in DOM:', document.contains(handle));
         } catch (error) {
             console.error('❌ Failed to add handle to control layer:', error);
@@ -2456,7 +2091,6 @@ class MindMap {
                     this.connectionManager.createConnection(nodeC, nodeD);
                     this.connectionManager.createConnection(nodeD, nodeA);
                     
-                    console.log('✅ Test connections created! Try:');
                     console.log('🔥 INTERPOLATION POINTS (NEW):');
                     console.log('  • Click connection lines to add interpolation points');
                     console.log('  • Drag GREEN points to sculpt smooth curves');

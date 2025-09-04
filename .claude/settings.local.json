@@ -11,7 +11,10 @@
       "Bash(rg:*)",
       "Bash(curl:*)",
       "Bash(node:*)",
-      "Bash(start http://localhost:8000/)"
+      "Bash(start http://localhost:8000/)",
+      "Bash(sed:*)",
+      "Bash(grep:*)",
+      "Bash(start http://localhost:8080)"
     ],
     "deny": [],
     "ask": []

@@ -112,7 +112,6 @@ class NodeManager {
         // Render the node
         this.renderNode(node);
         
-        console.log('✅ Node created:', nodeId);
         return node;
     }
 
@@ -1007,6 +1006,11 @@ class NodeManager {
         this.selectedNode = node;
         this.highlightNode(node);
         
+        // Open properties panel for the selected node
+        if (this.mindMap.panelManager) {
+            this.mindMap.panelManager.openNodePanel(node);
+        }
+        
         console.log('🎯 Node selected:', node.id);
     }
 
@@ -1042,6 +1046,11 @@ class NodeManager {
         
         this.selectedNodes.clear();
         this.selectedNode = null;
+        
+        // Close properties panel when no nodes are selected
+        if (this.mindMap.panelManager) {
+            this.mindMap.panelManager.closeNodePanel();
+        }
         
         console.log('🔄 All nodes deselected');
     }
@@ -1129,6 +1138,11 @@ class NodeManager {
         if (this.mindMap.connectionStart) {
             this.unhighlightNode(this.mindMap.connectionStart);
             this.mindMap.connectionStart = null;
+        }
+        
+        // Close properties panel
+        if (this.mindMap.panelManager) {
+            this.mindMap.panelManager.closeNodePanel();
         }
         
         console.log('🔄 All selections cleared');
@@ -1254,11 +1268,8 @@ class NodeManager {
      */
     openNodeCustomization(node) {
         this.selectNode(node);
-        this.mindMap.showNodePanel();
-        
-        // Populate panel with current node data
-        if (this.mindMap.populateNodePanel) {
-            this.mindMap.populateNodePanel(node);
+        if (this.mindMap.panelManager) {
+            this.mindMap.panelManager.openNodePanel(node);
         }
     }
 

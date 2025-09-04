@@ -18,7 +18,7 @@ class ConnectionManager {
         // Connection storage
         this.connections = new Map();
         this.controlPoints = new Map();
-        this.selectedConnection = null;
+        this.selectedConnection = null; // Explicitly set to null
         
         // Drag state
         this.isDragging = false;
@@ -34,6 +34,9 @@ class ConnectionManager {
     init() {
         this.setupEventListeners();
         this.setupGlobalEventHandlers();
+        
+        // Ensure no connections are selected by default
+        this.deselectAllConnections();
     }
     
     setupEventListeners() {
@@ -142,6 +145,9 @@ class ConnectionManager {
             ...options
         };
         
+        // Initialize control points storage for this connection
+        connection.controlPoints = [];
+        
         this.connections.set(connectionId, connection);
         this.controlPoints.set(connectionId, { points: [], visible: false });
         
@@ -149,7 +155,55 @@ class ConnectionManager {
         this.mindMap.connections.push(connection);
         
         this.renderConnection(connectionId);
+        
+        // Ensure this connection is not selected after creation
+        this.selectedConnection = null;
+        
+        // Temporarily disable default control points
+        // this.addDefaultControlPoints(connectionId);
+        
         return connectionId;
+    }
+    
+    addDefaultControlPoints(connectionId) {
+        const connection = this.connections.get(connectionId);
+        if (!connection) return;
+        
+        const fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
+        const toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+        
+        if (!fromNode || !toNode) return;
+        
+        // Calculate start and end points on the connection line
+        const { startX, startY, endX, endY } = this.calculateConnectionPoints(fromNode, toNode);
+        
+        // Create default control points at start and end positions
+        const controlData = this.controlPoints.get(connectionId);
+        if (!controlData) return;
+        
+        // Add start point
+        const startPoint = {
+            id: this.generateId('cp'),
+            x: startX,
+            y: startY,
+            isDefault: true
+        };
+        
+        // Add end point
+        const endPoint = {
+            id: this.generateId('cp'),
+            x: endX,
+            y: endY,
+            isDefault: true
+        };
+        
+        // Store in both places
+        controlData.points.push(startPoint, endPoint);
+        connection.controlPoints.push(startPoint, endPoint);
+        controlData.visible = true;
+        
+        // Show the control points
+        this.showControlPoints(connectionId);
     }
     
     deleteConnection(connectionId) {
@@ -262,7 +316,7 @@ class ConnectionManager {
             path.style.filter = 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.4))';
         }
         
-        // Invisible overlay for easier clicking
+        // Overlay for clicking - transparent by default
         const overlay = this.createSVGElement('path', {
             class: 'connection-overlay',
             'data-connection-id': connectionId,
@@ -279,6 +333,19 @@ class ConnectionManager {
         overlay.addEventListener('click', (e) => this.handleConnectionClick(e, connectionId));
         overlay.addEventListener('contextmenu', (e) => this.handleConnectionContextMenu(e, connectionId));
         
+        // Add hover effects
+        overlay.addEventListener('mouseenter', () => {
+            if (this.selectedConnection !== connectionId) {
+                overlay.setAttribute('stroke', 'rgba(56, 189, 248, 0.2)'); // Subtle blue highlight on hover
+            }
+        });
+        
+        overlay.addEventListener('mouseleave', () => {
+            if (this.selectedConnection !== connectionId) {
+                overlay.setAttribute('stroke', 'transparent');
+            }
+        });
+        
         // Add to DOM
         this.connectionLayer.appendChild(path);
         this.connectionLayer.appendChild(overlay);
@@ -293,8 +360,105 @@ class ConnectionManager {
             return;
         }
         
+        // Select the connection first
+        this.selectConnection(connectionId);
+        
+        // Create a control point and add it to the connection's data
         const worldPos = this.screenToWorldCoords(event.clientX, event.clientY);
-        this.addControlPoint(connectionId, worldPos.x, worldPos.y);
+        
+        // Add control point to the connection's data
+        const controlData = this.controlPoints.get(connectionId);
+        if (controlData && controlData.points.length < 2) {
+            const newPoint = {
+                id: this.generateId('cp'),
+                x: worldPos.x,
+                y: worldPos.y
+            };
+            
+            controlData.points.push(newPoint);
+            connection.controlPoints.push(newPoint);
+            controlData.visible = true;
+            
+            // Re-render the connection with the new curve
+            this.renderConnection(connectionId);
+            
+            // Create visual control point
+            const controlPoint = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            controlPoint.setAttribute('cx', worldPos.x);
+            controlPoint.setAttribute('cy', worldPos.y);
+            controlPoint.setAttribute('r', '15');
+            controlPoint.setAttribute('fill', '#FF6B35');
+            controlPoint.setAttribute('stroke', 'white');
+            controlPoint.setAttribute('stroke-width', '3');
+            controlPoint.setAttribute('data-point-id', newPoint.id);
+            controlPoint.style.cursor = 'move';
+            controlPoint.style.opacity = '1';
+            
+            // Add drag functionality
+            this.addControlPointDragBehavior(controlPoint, connectionId, newPoint.id);
+            
+            // Add to connection layer
+            this.connectionLayer.appendChild(controlPoint);
+        }
+    }
+    
+    addControlPointDragBehavior(element, connectionId, pointId) {
+        let isDragging = false;
+        
+        element.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            isDragging = true;
+            this.isDragging = true;
+            this.dragTarget = { connectionId, pointId, handle: element };
+            
+            element.setPointerCapture(e.pointerId);
+            element.style.filter = 'drop-shadow(0 0 15px rgba(255, 107, 53, 0.8))';
+        });
+        
+        element.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            
+            e.stopPropagation();
+            e.preventDefault();
+            
+            const worldPos = this.screenToWorldCoords(e.clientX, e.clientY);
+            
+            // Update visual position
+            element.setAttribute('cx', worldPos.x);
+            element.setAttribute('cy', worldPos.y);
+            
+            // Update stored position
+            this.updateControlPointPosition(connectionId, pointId, worldPos.x, worldPos.y);
+            
+            // Update connection curve
+            this.renderConnection(connectionId);
+        });
+        
+        element.addEventListener('pointerup', (e) => {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            this.isDragging = false;
+            this.dragTarget = null;
+            
+            element.releasePointerCapture(e.pointerId);
+            element.style.filter = '';
+        });
+        
+        // Double-click to delete
+        let clickCount = 0;
+        element.addEventListener('click', (e) => {
+            e.stopPropagation();
+            clickCount++;
+            
+            if (clickCount === 1) {
+                setTimeout(() => { clickCount = 0; }, 300);
+            } else if (clickCount === 2) {
+                this.deleteControlPoint(connectionId, pointId);
+            }
+        });
     }
     
     handleConnectionContextMenu(event, connectionId) {
@@ -306,8 +470,19 @@ class ConnectionManager {
     
     // Control Points
     addControlPoint(connectionId, x, y) {
+        console.log('📍 addControlPoint called with:', { connectionId, x, y });
+        
+        const connection = this.connections.get(connectionId);
         const controlData = this.controlPoints.get(connectionId);
-        if (!controlData || controlData.points.length >= 2) return false;
+        
+        console.log('🔍 Connection found:', !!connection);
+        console.log('🔍 ControlData found:', !!controlData);
+        console.log('🔍 Current control points:', controlData ? controlData.points.length : 'N/A');
+        
+        if (!connection || !controlData || controlData.points.length >= 2) {
+            console.log('❌ Cannot add control point - condition failed');
+            return false;
+        }
         
         const newPoint = {
             id: this.generateId('cp'),
@@ -315,29 +490,44 @@ class ConnectionManager {
             y: y
         };
         
+        console.log('➕ Creating new control point:', newPoint);
+        
+        // Store in both places for compatibility
         controlData.points.push(newPoint);
+        connection.controlPoints.push(newPoint);
         controlData.visible = true;
         
+        console.log('🎨 Rendering connection and showing control points');
         this.renderConnection(connectionId);
         this.showControlPoints(connectionId);
         
+        console.log('✅ Control point creation completed');
         return true;
     }
     
     showControlPoints(connectionId) {
+        console.log('👁️ showControlPoints called for:', connectionId);
+        
         const controlData = this.controlPoints.get(connectionId);
-        if (!controlData || controlData.points.length === 0) return;
+        console.log('🔍 Control data:', controlData);
+        
+        if (!controlData || controlData.points.length === 0) {
+            console.log('❌ No control data or no points');
+            return;
+        }
         
         this.hideAllControlPoints();
         
         controlData.visible = true;
-        this.selectedConnection = connectionId;
+        console.log('🎨 Creating', controlData.points.length, 'control point handles');
         
         controlData.points.forEach((point, index) => {
+            console.log(`➕ Creating handle ${index} at (${point.x}, ${point.y})`);
             this.createControlPointHandle(connectionId, point, index);
         });
         
         this.renderConnection(connectionId);
+        console.log('✅ showControlPoints completed');
     }
     
     createControlPointHandle(connectionId, point, index) {
@@ -345,50 +535,33 @@ class ConnectionManager {
         const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         circle.setAttribute('cx', point.x);
         circle.setAttribute('cy', point.y);
-        circle.setAttribute('r', '15');
-        circle.setAttribute('fill', '#FF6B35');
-        circle.setAttribute('stroke', 'white');
-        circle.setAttribute('stroke-width', '3');
+        
+        // Style differently for default points
+        if (point.isDefault) {
+            circle.setAttribute('r', '8');
+            circle.setAttribute('fill', '#10B981');
+            circle.setAttribute('stroke', 'white');
+            circle.setAttribute('stroke-width', '2');
+        } else {
+            circle.setAttribute('r', '15');
+            circle.setAttribute('fill', '#FF6B35');
+            circle.setAttribute('stroke', 'white');
+            circle.setAttribute('stroke-width', '3');
+        }
+        
         circle.setAttribute('class', 'control-point-circle');
         circle.setAttribute('data-connection-id', connectionId);
         circle.setAttribute('data-point-id', point.id);
         circle.style.cursor = 'move';
         circle.style.opacity = '1';
         
+        // Add drag behavior
+        this.addControlPointDragBehavior(circle, connectionId, point.id);
+        
         // Add directly to connection layer (we know this works)
         this.connectionLayer.appendChild(circle);
         
-        // Add simple drag behavior directly to the circle
-        this.addSimpleControlPointBehaviors(circle, connectionId, point.id);
-        
         return circle;
-    }
-    
-    addSimpleControlPointBehaviors(circle, connectionId, pointId) {
-        // Simple double-click to delete
-        let clickCount = 0;
-        circle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            clickCount++;
-            
-            if (clickCount === 1) {
-                setTimeout(() => { clickCount = 0; }, 300);
-            } else if (clickCount === 2) {
-                this.deleteControlPoint(connectionId, pointId);
-            }
-        });
-        
-        // Simple drag
-        circle.addEventListener('pointerdown', (e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            
-            this.isDragging = true;
-            this.dragTarget = { connectionId, pointId, handle: circle };
-            
-            circle.setPointerCapture(e.pointerId);
-            circle.style.filter = 'drop-shadow(0 0 15px rgba(255, 107, 53, 0.8))';
-        });
     }
     
     addControlPointBehaviors(handle, hitArea, connectionId, pointId) {
@@ -434,35 +607,47 @@ class ConnectionManager {
     }
     
     deleteControlPoint(connectionId, pointId) {
+        const connection = this.connections.get(connectionId);
         const controlData = this.controlPoints.get(connectionId);
-        if (!controlData) return;
+        if (!connection || !controlData) return;
         
         const pointIndex = controlData.points.findIndex(p => p.id === pointId);
         if (pointIndex === -1) return;
         
-        // Animate out
-        const handle = this.controlLayer.querySelector(
-            `[data-connection-id="${connectionId}"][data-point-id="${pointId}"]`
+        // Remove from control layer
+        const handle = this.connectionLayer.querySelector(
+            `[data-point-id="${pointId}"]`
         );
         
         if (handle) {
-            this.animateOut(handle, () => {
-                controlData.points.splice(pointIndex, 1);
-                this.renderConnection(connectionId);
-                
-                if (controlData.points.length > 0) {
-                    this.showControlPoints(connectionId);
-                } else {
-                    controlData.visible = false;
-                    this.selectedConnection = null;
-                }
-            });
+            handle.remove();
+        }
+        
+        // Remove from both storage locations
+        controlData.points.splice(pointIndex, 1);
+        const connectionPointIndex = connection.controlPoints.findIndex(p => p.id === pointId);
+        if (connectionPointIndex !== -1) {
+            connection.controlPoints.splice(connectionPointIndex, 1);
+        }
+        
+        // Re-render connection
+        this.renderConnection(connectionId);
+        
+        if (controlData.points.length > 0) {
+            this.showControlPoints(connectionId);
+        } else {
+            controlData.visible = false;
+            this.selectedConnection = null;
         }
     }
     
     hideAllControlPoints() {
+        // Remove from both layers to be safe
         const handles = this.controlLayer.querySelectorAll('.control-point-handle');
         handles.forEach(handle => handle.remove());
+        
+        const circles = this.connectionLayer.querySelectorAll('.control-point-circle');
+        circles.forEach(circle => circle.remove());
         
         for (const controlData of this.controlPoints.values()) {
             controlData.visible = false;
@@ -477,45 +662,108 @@ class ConnectionManager {
     }
     
     updateControlPointPosition(connectionId, pointId, x, y) {
+        const connection = this.connections.get(connectionId);
         const controlData = this.controlPoints.get(connectionId);
-        if (!controlData) return;
+        if (!connection || !controlData) return;
         
+        // Update in controlData
         const point = controlData.points.find(p => p.id === pointId);
         if (point) {
             point.x = x;
             point.y = y;
         }
+        
+        // Update in connection storage
+        const connectionPoint = connection.controlPoints.find(p => p.id === pointId);
+        if (connectionPoint) {
+            connectionPoint.x = x;
+            connectionPoint.y = y;
+        }
     }
     
     // Connection Selection
     selectConnection(connectionId) {
-        this.selectedConnection = connectionId;
-        this.renderConnection(connectionId);
+        // Clear previous selection visual only (don't re-render to avoid clearing control points)
+        if (this.selectedConnection && this.selectedConnection !== connectionId) {
+            const prevOverlay = this.connectionLayer.querySelector(`[data-connection-id="${this.selectedConnection}"].connection-overlay`);
+            if (prevOverlay) {
+                prevOverlay.setAttribute('stroke', 'transparent');
+            }
+            const prevPath = this.connectionLayer.querySelector(`[data-connection-id="${this.selectedConnection}"].connection-line`);
+            if (prevPath) {
+                prevPath.setAttribute('stroke', '#6B7280');
+                prevPath.setAttribute('stroke-width', '2');
+                prevPath.style.filter = '';
+            }
+        }
         
+        this.selectedConnection = connectionId;
+        
+        // Update visual selection without re-rendering (which clears control points)
+        const overlay = this.connectionLayer.querySelector(`[data-connection-id="${connectionId}"].connection-overlay`);
+        if (overlay) {
+            overlay.setAttribute('stroke', 'rgba(255, 0, 0, 0.3)'); // Red highlight when selected
+        }
+        const path = this.connectionLayer.querySelector(`[data-connection-id="${connectionId}"].connection-line`);
+        if (path) {
+            path.setAttribute('stroke', '#38BDF8');
+            path.setAttribute('stroke-width', '3');
+            path.style.filter = 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.4))';
+        }
+        
+        // Show existing control points without clearing them
         const controlData = this.controlPoints.get(connectionId);
         if (controlData && controlData.points.length > 0) {
-            this.showControlPoints(connectionId);
+            this.showExistingControlPoints(connectionId);
         }
     }
     
     deselectAllConnections() {
+        // Clear overlay highlights for ALL connections
+        const allOverlays = this.connectionLayer.querySelectorAll('.connection-overlay');
+        allOverlays.forEach(overlay => {
+            overlay.setAttribute('stroke', 'transparent');
+        });
+        
+        // Clear main path highlights for ALL connections  
+        const allPaths = this.connectionLayer.querySelectorAll('.connection-line');
+        allPaths.forEach(path => {
+            path.setAttribute('stroke', '#6B7280'); // Default gray color
+            path.setAttribute('stroke-width', '2');
+            path.style.filter = '';
+        });
+        
+        this.selectedConnection = null;
         this.hideAllControlPoints();
+    }
+    
+    showExistingControlPoints(connectionId) {
+        const controlData = this.controlPoints.get(connectionId);
+        if (!controlData || controlData.points.length === 0) return;
+        
+        // Only show control points for this connection, don't clear others
+        controlData.visible = true;
+        
+        controlData.points.forEach((point, index) => {
+            // Check if control point already exists in DOM
+            const existingPoint = this.connectionLayer.querySelector(`[data-point-id="${point.id}"]`);
+            if (!existingPoint) {
+                this.createControlPointHandle(connectionId, point, index);
+            }
+        });
     }
     
     renderAllConnections() {
         this.connectionLayer.innerHTML = '';
         
+        // Force no selection during initial render
+        this.selectedConnection = null;
+        
         for (const connectionId of this.connections.keys()) {
             this.renderConnection(connectionId);
         }
         
-        // Re-show selected control points
-        if (this.selectedConnection && this.controlPoints.has(this.selectedConnection)) {
-            const controlData = this.controlPoints.get(this.selectedConnection);
-            if (controlData.visible) {
-                this.showControlPoints(this.selectedConnection);
-            }
-        }
+        // Don't auto-restore any selection - let user manually select
     }
     
     // Performance Optimization
