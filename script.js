@@ -155,13 +155,8 @@ class MindMap {
         this.minimap.addEventListener('click', (e) => this.onMinimapClick(e));
         
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Delete') {
-                if (this.selectedNodes.size > 0) {
-                    this.deleteSelectedNodes();
-                } else if (this.selectedNode) {
-                    this.deleteNode(this.selectedNode);
-                }
-            } else if (e.key === 'Escape') {
+            // Delete key is handled by NodeManager to prevent double deletion
+            if (e.key === 'Escape') {
                 if (this.nodeManager) {
                     this.nodeManager.clearSelection(true); // Force clear
                 } else {
@@ -246,29 +241,49 @@ class MindMap {
         const centerY = this.viewBox.height / 2;
         
         const centralNode = this.addNode(centerX, centerY, 'Central Idea');
-        const node1 = this.addNode(centerX - 200, centerY - 100, 'Node 1');
-        const node2 = this.addNode(centerX + 200, centerY - 100, 'Node 2');
-        const node3 = this.addNode(centerX, centerY + 150, 'Node 3');
+        const node1 = this.addNode(centerX - 250, centerY - 120, 'Node 1');
+        const node2 = this.addNode(centerX + 250, centerY - 120, 'Node 2');
+        const node3 = this.addNode(centerX, centerY + 200, 'Node 3');
+        
+        console.log('📍 Created initial nodes:', {
+            central: centralNode?.id,
+            node1: node1?.id,
+            node2: node2?.id,
+            node3: node3?.id
+        });
         
         // Create connections between nodes so users can experiment with curve points
         setTimeout(() => {
             if (this.connectionManager && centralNode && node1 && node2 && node3) {
                 console.log('🔗 Creating sample connections for curve experimentation');
-                this.connectionManager.createConnection(centralNode, node1);
-                this.connectionManager.createConnection(centralNode, node2);
-                this.connectionManager.createConnection(centralNode, node3);
                 
-                // Force clear any default selections after creating connections
+                // Force re-render all connections to ensure proper gradient application
                 setTimeout(() => {
-                    this.connectionManager.deselectAllConnections();
-                }, 100);
+                    this.connectionManager.createConnection(centralNode, node1);
+                    this.connectionManager.createConnection(centralNode, node2);
+                    this.connectionManager.createConnection(centralNode, node3);
+                    
+                    // Force clear any default selections and re-render with gradients
+                    setTimeout(() => {
+                        this.connectionManager.deselectAllConnections();
+                        this.connectionManager.renderAllConnections();
+                        
+                        const connectionCount = this.connectionManager.connections.size;
+                        const visibleConnections = document.querySelectorAll('.connection-line').length;
+                        console.log('🎨 Initial connections rendered with proper gradients:', {
+                            totalConnections: connectionCount,
+                            visibleConnections: visibleConnections,
+                            connectionIds: Array.from(this.connectionManager.connections.keys())
+                        });
+                    }, 100);
+                }, 50);
                 
                 console.log('  • Click on connections to add orange control points');
                 console.log('  • Alt+Click on connections to add green interpolation points');
                 console.log('  • Right-click on connections for more options');
                 console.log('  • Drag the points to reshape curves');
             }
-        }, 200);
+        }, 300);
     }
 
     addRootNode() {
@@ -881,6 +896,7 @@ class MindMap {
                 e.preventDefault(); // Prevent middle mouse scroll behavior
             } else if (e.button === 0) {
                 // Left click for selection
+                console.log('🔲 Starting rectangle selection at:', { worldX, worldY });
                 this.isSelecting = true;
                 this.selectionStart.x = worldX;
                 this.selectionStart.y = worldY;
@@ -972,6 +988,7 @@ class MindMap {
             if (this.dragDistance > this.dragThreshold) {
                 // Show selection rectangle
                 if (this.selectionRectangle.style.display === 'none') {
+                    console.log('🔲 Showing selection rectangle');
                     this.selectionRectangle.style.display = 'block';
                 }
                 
@@ -3120,13 +3137,28 @@ class MindMap {
         const rectBounds = this.getSelectionRectangleBounds();
         const selectedNodes = this.getNodesInRectangle(rectBounds);
         
-        if (!this.isConnectMode) {
-            this.clearSelection();
+        console.log('🔲 Rectangle selection finished:', {
+            bounds: rectBounds,
+            nodesFound: selectedNodes.length,
+            nodeIds: selectedNodes.map(n => n.id)
+        });
+        
+        if (!this.isConnectMode && this.nodeManager) {
+            // Clear current selection
+            this.nodeManager.deselectAllNodes();
             
+            // Select nodes within rectangle
             selectedNodes.forEach(node => {
-                this.selectedNodes.add(node.id);
-                this.highlightNode(node, 'multi-selected');
+                this.nodeManager.selectedNodes.add(node.id);
+                this.nodeManager.highlightNode(node);
             });
+            
+            // Set the first node as the primary selected node
+            if (selectedNodes.length > 0) {
+                this.nodeManager.selectedNode = selectedNodes[0];
+            }
+            
+            console.log('🔲 Selected', selectedNodes.length, 'nodes via rectangle selection');
         }
         
         this.selectionRectangle.style.display = 'none';
@@ -3143,19 +3175,40 @@ class MindMap {
     }
 
     getNodesInRectangle(rectBounds) {
-        return this.nodes.filter(node => {
-            const nodeRight = node.x + node.radius;
-            const nodeLeft = node.x - node.radius;
-            const nodeBottom = node.y + node.radius;
-            const nodeTop = node.y - node.radius;
+        if (!this.nodeManager) return [];
+        
+        // Get nodes from NodeManager's Map and convert to array
+        const nodes = Array.from(this.nodeManager.nodes.values());
+        
+        return nodes.filter(node => {
+            // Use node shape dimensions instead of radius
+            const nodeWidth = node.shape ? node.shape.width : 80;
+            const nodeHeight = node.shape ? node.shape.height : 80;
+            
+            const nodeRight = node.x + (nodeWidth / 2);
+            const nodeLeft = node.x - (nodeWidth / 2);
+            const nodeBottom = node.y + (nodeHeight / 2);
+            const nodeTop = node.y - (nodeHeight / 2);
             
             const rectRight = rectBounds.x + rectBounds.width;
             const rectBottom = rectBounds.y + rectBounds.height;
             
-            return !(nodeLeft > rectRight || 
-                     nodeRight < rectBounds.x || 
-                     nodeTop > rectBottom || 
-                     nodeBottom < rectBounds.y);
+            // Check if node overlaps with rectangle
+            const overlaps = !(nodeLeft > rectRight || 
+                              nodeRight < rectBounds.x || 
+                              nodeTop > rectBottom || 
+                              nodeBottom < rectBounds.y);
+            
+            if (overlaps) {
+                console.log('🔲 Node in rectangle:', {
+                    nodeId: node.id,
+                    nodePos: { x: node.x, y: node.y },
+                    nodeBounds: { left: nodeLeft, right: nodeRight, top: nodeTop, bottom: nodeBottom },
+                    rectBounds: rectBounds
+                });
+            }
+            
+            return overlaps;
         });
     }
 }

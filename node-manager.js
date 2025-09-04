@@ -57,8 +57,20 @@ class NodeManager {
     setupEventListeners() {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Delete' && this.selectedNodes.size > 0) {
-                this.deleteSelectedNodes();
+            if (e.key === 'Delete' && (this.selectedNodes.size > 0 || (this.mindMap.connectionManager && this.mindMap.connectionManager.selectedConnection))) {
+                console.log('🗑️ Delete key pressed - deleting selected nodes and connections');
+                
+                // Delete selected nodes
+                if (this.selectedNodes.size > 0) {
+                    console.log('🗑️ Deleting selected nodes:', Array.from(this.selectedNodes));
+                    this.deleteSelectedNodes();
+                }
+                
+                // Delete selected connections
+                if (this.mindMap.connectionManager && this.mindMap.connectionManager.selectedConnection) {
+                    console.log('🗑️ Deleting selected connection:', this.mindMap.connectionManager.selectedConnection);
+                    this.mindMap.connectionManager.deleteConnection(this.mindMap.connectionManager.selectedConnection);
+                }
             }
             if (e.key === 'Escape') {
                 this.deselectAllNodes();
@@ -75,6 +87,13 @@ class NodeManager {
                 if (e.key === 'a') {
                     e.preventDefault();
                     this.selectAllNodes();
+                    
+                    // Also select all connections if connection manager exists
+                    if (this.mindMap.connectionManager) {
+                        console.log('🔄 Selecting all nodes and connections');
+                        // For now, just ensure we can delete connections when selected individually
+                        // TODO: Implement multi-connection selection in connection manager
+                    }
                 }
             }
         });
@@ -651,6 +670,17 @@ class NodeManager {
             // Restore drag line
             dragLine.style.display = originalDisplay;
             
+            // Enhanced debug logging for hit detection (only when target changes)
+            if (targetNodeId !== currentTarget) {
+                console.log('🎯 Hit detection change:', {
+                    from: currentTarget,
+                    to: targetNodeId,
+                    element: element?.tagName,
+                    elementId: element?.id,
+                    sourceNodeId: node.id
+                });
+            }
+            
             // Debug logging (can be removed for production)
             if (targetNodeId && targetNodeId !== node.id) {
                 console.debug('🎯 Target node detected:', targetNodeId);
@@ -673,12 +703,13 @@ class NodeManager {
                 }
             }
             
+            const previousTarget = currentTarget;
             currentTarget = (targetNodeId && targetNodeId !== node.id) ? targetNodeId : null;
             
             // Debug logging for target detection
-            if (currentTarget !== prevTarget) {
+            if (currentTarget !== previousTarget) {
                 console.log('🎯 Current target changed:', {
-                    from: prevTarget,
+                    from: previousTarget,
                     to: currentTarget,
                     detectedNodeId: targetNodeId,
                     sourceNodeId: node.id
@@ -687,23 +718,68 @@ class NodeManager {
         };
         
         const handleMouseUp = (upEvent) => {
-            // Hide drag line
+            console.log('🖱️ Mouse up event fired!', { x: upEvent.clientX, y: upEvent.clientY });
+            
+            // Hide drag line first to prevent it from blocking hit detection
             dragLine.style.display = 'none';
+            
+            // Final hit detection check at mouse up position (after hiding drag line)
+            const finalElement = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
+            const finalTargetGroup = finalElement?.closest('[data-node-id]');
+            const finalTargetId = finalTargetGroup?.getAttribute('data-node-id');
+            
+            console.log('🎯 Final hit detection on mouse up:', {
+                mousePos: { x: upEvent.clientX, y: upEvent.clientY },
+                finalElement: finalElement?.tagName,
+                finalElementId: finalElement?.id,
+                finalTargetGroup: finalTargetGroup?.tagName,
+                finalTargetId: finalTargetId,
+                currentTarget: currentTarget,
+                sourceNodeId: node.id
+            });
+            
+            // Use the final hit detection result, but fallback to currentTarget if available
+            let actualTarget = (finalTargetId && finalTargetId !== node.id) ? finalTargetId : null;
+            
+            // If final hit detection failed but we had a target during mouse move, use that
+            if (!actualTarget && currentTarget) {
+                actualTarget = currentTarget;
+                console.log('🎯 Using currentTarget as fallback:', actualTarget);
+            }
             
             // Remove source node highlight
             nodeGroup.style.filter = '';
             
-            // Remove target highlight
+            // Remove target highlight (check both currentTarget and actualTarget)
             if (currentTarget) {
                 const targetElement = this.nodeLayer.querySelector(`[data-node-id="${currentTarget}"]`);
                 if (targetElement) {
                     targetElement.style.filter = '';
                 }
             }
+            if (actualTarget && actualTarget !== currentTarget) {
+                const targetElement = this.nodeLayer.querySelector(`[data-node-id="${actualTarget}"]`);
+                if (targetElement) {
+                    targetElement.style.filter = '';
+                }
+            }
             
-            // Create connection if dropped on valid target OR create new node if dropped on empty space
-            if (currentTarget) {
-                const targetNode = this.nodes.get(currentTarget);
+            console.log('🔗 Connection creation attempt:', {
+                currentTargetFromMove: currentTarget,
+                actualTargetFromHitTest: actualTarget,
+                usingTarget: actualTarget,
+                sourceNode: node.id
+            });
+            
+            if (actualTarget) {
+                const targetNode = this.nodes.get(actualTarget);
+                console.log('🎯 Creating connection:', {
+                    from: node.id,
+                    to: actualTarget,
+                    targetNodeExists: !!targetNode,
+                    connectionManagerExists: !!this.mindMap.connectionManager
+                });
+                
                 if (targetNode && this.mindMap.connectionManager) {
                     this.mindMap.connectionManager.createConnection(node, targetNode);
                     this.showConnectionFeedback(node, targetNode);
@@ -728,12 +804,12 @@ class NodeManager {
             }
             
             // Clean up
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
+            document.removeEventListener('pointermove', handleMouseMove);
+            document.removeEventListener('pointerup', handleMouseUp);
         };
         
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+        document.addEventListener('pointermove', handleMouseMove);
+        document.addEventListener('pointerup', handleMouseUp);
     }
     
     /**
@@ -804,6 +880,202 @@ class NodeManager {
     }
 
     /**
+     * Start connection creation with drag line
+     */
+    startConnectionCreation(e, sourceNode) {
+        // Set up connection dragging state
+        this.mindMap.isDraggingConnection = true;
+        this.mindMap.connectionStart = sourceNode;
+        
+        const rect = this.canvas.getBoundingClientRect();
+        const startPoint = { x: sourceNode.x, y: sourceNode.y };
+        
+        // Show drag connection line
+        const dragLine = this.mindMap.dragConnectionLine;
+        dragLine.style.display = 'block';
+        dragLine.setAttribute('stroke', '#38BDF8');
+        dragLine.setAttribute('stroke-width', '3');
+        dragLine.setAttribute('stroke-dasharray', '5,5');
+        dragLine.style.filter = 'drop-shadow(0 0 4px rgba(56, 189, 248, 0.6))';
+        
+        // Visual feedback - highlight source node
+        const nodeGroup = this.nodeLayer.querySelector(`[data-node-id="${sourceNode.id}"]`);
+        if (nodeGroup) {
+            nodeGroup.style.filter = 'drop-shadow(0 0 12px rgba(59, 130, 246, 0.8)) brightness(1.1)';
+        }
+        
+        this.currentTarget = null;
+        this.hasFoundTarget = false; // Reset target found flag
+        console.log('🔗 Connection creation initialized for:', sourceNode.id);
+    }
+    
+    /**
+     * Switch from connection creation to node dragging mode
+     */
+    switchToNodeDragMode(sourceNode) {
+        // Clean up connection creation visuals
+        const dragLine = this.mindMap.dragConnectionLine;
+        dragLine.style.display = 'none';
+        
+        // Remove source node highlight
+        const sourceNodeGroup = this.nodeLayer.querySelector(`[data-node-id="${sourceNode.id}"]`);
+        if (sourceNodeGroup) {
+            sourceNodeGroup.style.filter = '';
+        }
+        
+        // Reset connection state
+        this.isCreatingConnection = false;
+        this.mindMap.isDraggingConnection = false;
+        this.mindMap.connectionStart = null;
+        
+        // Switch to node dragging mode
+        this.isDragging = true;
+        console.log('🖱️ Switched to node drag mode for:', sourceNode.id);
+    }
+    
+    /**
+     * Handle connection dragging
+     */
+    handleConnectionDrag(e, sourceNode) {
+        const rect = this.canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        // Convert mouse position to world coordinates for the drag line
+        const worldMouseX = this.mindMap.viewBox.x + (mouseX / rect.width) * this.mindMap.viewBox.width;
+        const worldMouseY = this.mindMap.viewBox.y + (mouseY / rect.height) * this.mindMap.viewBox.height;
+        
+        // Update drag line
+        const dragLine = this.mindMap.dragConnectionLine;
+        dragLine.setAttribute('d', `M ${sourceNode.x} ${sourceNode.y} L ${worldMouseX} ${worldMouseY}`);
+        
+        // Check for potential drop targets - temporarily hide drag line for accurate detection
+        const originalDisplay = dragLine.style.display;
+        dragLine.style.display = 'none';
+        
+        const element = document.elementFromPoint(e.clientX, e.clientY);
+        const targetNodeGroup = element?.closest('[data-node-id]');
+        const targetNodeId = targetNodeGroup?.getAttribute('data-node-id');
+        
+        // Restore drag line
+        dragLine.style.display = originalDisplay;
+        
+        // Only log when target changes to reduce noise
+        if (targetNodeId !== this.currentTarget) {
+            console.log('🔍 Target changed:', {
+                from: this.currentTarget,
+                to: targetNodeId,
+                element: element?.tagName,
+                sourceNodeId: sourceNode.id
+            });
+        }
+        
+        // If we've moved significantly and haven't found a target, switch to node drag mode
+        if (!targetNodeId && !this.hasFoundTarget && this.initialPointerPos) {
+            const deltaX = e.clientX - this.initialPointerPos.x;
+            const deltaY = e.clientY - this.initialPointerPos.y;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            if (distance > this.dragThreshold * 3) { // Give more distance for connection attempt
+                console.log('🔄 Switching to node drag mode - no target found');
+                this.switchToNodeDragMode(sourceNode);
+                return;
+            }
+        }
+        
+        // Track if we've ever found a valid target
+        if (targetNodeId && targetNodeId !== sourceNode.id) {
+            this.hasFoundTarget = true;
+        }
+        
+        // Update target highlighting
+        if (this.currentTarget && this.currentTarget !== targetNodeId) {
+            // Remove previous highlight
+            const prevTarget = this.nodeLayer.querySelector(`[data-node-id="${this.currentTarget}"]`);
+            if (prevTarget) {
+                prevTarget.style.filter = '';
+            }
+        }
+        
+        if (targetNodeId && targetNodeId !== sourceNode.id && targetNodeId !== this.currentTarget) {
+            // Highlight new target
+            const targetElement = this.nodeLayer.querySelector(`[data-node-id="${targetNodeId}"]`);
+            if (targetElement) {
+                targetElement.style.filter = 'drop-shadow(0 0 12px rgba(34, 197, 94, 0.8)) brightness(1.1)';
+            }
+        }
+        
+        this.currentTarget = (targetNodeId && targetNodeId !== sourceNode.id) ? targetNodeId : null;
+    }
+    
+    /**
+     * Complete connection creation
+     */
+    completeConnectionCreation(e, sourceNode) {
+        console.log('🔗 Completing connection creation from:', sourceNode.id);
+        
+        // Use the current target we've been tracking during the drag
+        const actualTarget = this.currentTarget;
+        
+        console.log('🔗 Connection completion attempt:', {
+            sourceNode: sourceNode.id,
+            currentTarget: this.currentTarget,
+            actualTarget: actualTarget,
+            hasFoundTarget: this.hasFoundTarget
+        });
+        
+        // Clean up visual elements
+        const dragLine = this.mindMap.dragConnectionLine;
+        dragLine.style.display = 'none';
+        
+        // Remove source node highlight
+        const sourceNodeGroup = this.nodeLayer.querySelector(`[data-node-id="${sourceNode.id}"]`);
+        if (sourceNodeGroup) {
+            sourceNodeGroup.style.filter = '';
+        }
+        
+        // Remove target highlight
+        if (this.currentTarget) {
+            const targetElement = this.nodeLayer.querySelector(`[data-node-id="${this.currentTarget}"]`);
+            if (targetElement) {
+                targetElement.style.filter = '';
+            }
+        }
+        
+        // Create connection if we have a valid target
+        if (actualTarget) {
+            const targetNode = this.nodes.get(actualTarget);
+            if (targetNode && this.mindMap.connectionManager) {
+                console.log('🎯 Creating connection:', {
+                    from: sourceNode.id,
+                    to: actualTarget
+                });
+                
+                this.mindMap.connectionManager.createConnection(sourceNode, targetNode);
+                this.showConnectionFeedback(sourceNode, targetNode);
+                console.log('✅ Connection created successfully!');
+            } else {
+                console.warn('❌ Target node or connection manager not found');
+            }
+        } else {
+            console.log('🚫 No valid target for connection creation');
+        }
+        
+        // Reset connection state
+        this.isCreatingConnection = false;
+        this.mindMap.isDraggingConnection = false;
+        this.mindMap.connectionStart = null;
+        this.currentTarget = null;
+        this.hasFoundTarget = false;
+        this.connectionSourceNode = null;
+        
+        // Clean up drag state
+        this.isDragging = false;
+        this.dragTarget = null;
+        this.initialPointerPos = null;
+    }
+
+    /**
      * Handle node pointer down (start drag or select)
      */
     handleNodePointerDown(e, node, hitArea) {
@@ -839,10 +1111,22 @@ class NodeManager {
         this.dragThreshold = 5; // pixels - minimum movement to start dragging
         
         // Handle selection immediately on mouse down (not on drag)
-        if (e.ctrlKey || e.metaKey) {
-            this.toggleNodeSelection(node);
-        } else if (!this.selectedNodes.has(node.id)) {
-            this.selectNode(node);
+        // But don't select if we're in the middle of dragging a connection OR if another node is in connection creation mode
+        if (!this.mindMap.isDraggingConnection && !this.mindMap.connectionStart && !this.isCreatingConnection) {
+            if (e.ctrlKey || e.metaKey) {
+                this.toggleNodeSelection(node);
+            } else if (!this.selectedNodes.has(node.id)) {
+                this.selectNode(node);
+            }
+        } else {
+            console.log('🔗 Skipping node selection - connection creation in progress');
+            // If this is a target node during connection creation, prevent further processing
+            if (this.isCreatingConnection && this.connectionSourceNode && node.id !== this.connectionSourceNode.id) {
+                console.log('🎯 Target node clicked during connection creation - preventing default behavior');
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
         }
         
         // Capture pointer for smooth dragging
@@ -880,9 +1164,18 @@ class NodeManager {
                 return; // Not enough movement to start dragging yet
             }
             
-            // Start dragging
-            this.isDragging = true;
-            console.log('🖱️ Node drag started:', node.id);
+            // Start in connection creation mode initially - we'll switch to node dragging
+            // if we don't find a target after moving a bit more
+            this.isCreatingConnection = true;
+            this.connectionSourceNode = node;
+            console.log('🔗 Connection creation mode started for:', node.id);
+            this.startConnectionCreation(e, node);
+        }
+        
+        if (this.isCreatingConnection) {
+            // Handle connection creation dragging
+            this.handleConnectionDrag(e, node);
+            return;
         }
         
         if (!this.isDragging) return;
@@ -922,6 +1215,12 @@ class NodeManager {
     handleNodePointerUp(e, node) {
         e.preventDefault();
         e.stopPropagation();
+        
+        // Handle connection creation completion
+        if (this.isCreatingConnection) {
+            this.completeConnectionCreation(e, node);
+            return;
+        }
         
         // Clean up drag state regardless of whether dragging actually occurred
         const wasDragging = this.isDragging;

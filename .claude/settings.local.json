@@ -1,21 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git init:*)",
-      "Bash(npm start)",
-      "Bash(npm install)",
-      "Bash(npx http-server:*)",
-      "Bash(node server.js)",
-      "Bash(python:*)",
-      "Bash(start http://localhost:8080/)",
-      "Bash(rg:*)",
-      "Bash(curl:*)",
-      "Bash(node:*)",
-      "Bash(start http://localhost:8000/)",
-      "Bash(sed:*)",
-      "Bash(grep:*)",
-      "Bash(start http://localhost:8080)",
-      "Bash(del *.tmp.*)"
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

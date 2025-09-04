@@ -35,8 +35,23 @@ class ConnectionManager {
         this.setupEventListeners();
         this.setupGlobalEventHandlers();
         
+        // Ensure gradients are ready
+        this.ensureGradientsReady();
+        
         // Ensure no connections are selected by default
         this.deselectAllConnections();
+    }
+    
+    ensureGradientsReady() {
+        // Check if gradients exist in DOM, if not wait a bit
+        const connectionGradient = document.getElementById('connectionGradient');
+        if (!connectionGradient) {
+            console.warn('⚠️ Connection gradient not found, waiting for DOM to be ready...');
+            setTimeout(() => this.ensureGradientsReady(), 50);
+            return false;
+        }
+        console.log('✅ Connection gradients are ready');
+        return true;
     }
     
     setupEventListeners() {
@@ -70,9 +85,9 @@ class ConnectionManager {
     }
     
     handleKeydown(e) {
-        if (e.key === 'Delete' && this.selectedConnection) {
-            this.deleteConnection(this.selectedConnection);
-        } else if (e.key === 'Escape') {
+        // Note: Delete key handling is now handled centrally by NodeManager
+        // to coordinate deletion of both nodes and connections
+        if (e.key === 'Escape') {
             this.deselectAllConnections();
         }
     }
@@ -125,9 +140,17 @@ class ConnectionManager {
     
     // Connection Management
     createConnection(fromNode, toNode, options = {}) {
+        console.log('🔗 Creating connection:', {
+            from: fromNode.id,
+            to: toNode.id,
+            fromExists: !!fromNode,
+            toExists: !!toNode
+        });
+        
         // Check for existing connection
         const existingId = this.findConnection(fromNode.id, toNode.id);
         if (existingId) {
+            console.log('🔗 Connection already exists:', existingId);
             this.selectConnection(existingId);
             return existingId;
         }
@@ -138,8 +161,8 @@ class ConnectionManager {
             from: fromNode.id,
             to: toNode.id,
             style: {
-                stroke: options.stroke || '#6B7280',
-                strokeWidth: options.strokeWidth || 2,
+                stroke: options.stroke || 'url(#connectionGradient)',
+                strokeWidth: options.strokeWidth || 3,
                 strokeDasharray: options.strokeDasharray || 'none'
             },
             ...options
@@ -169,8 +192,17 @@ class ConnectionManager {
         const connection = this.connections.get(connectionId);
         if (!connection) return;
         
-        const fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
-        const toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+        // Check both old nodes array and new nodeManager structure
+        let fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
+        let toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+        
+        // Fallback to nodeManager if available
+        if (!fromNode && this.mindMap.nodeManager) {
+            fromNode = this.mindMap.nodeManager.nodes.get(connection.from);
+        }
+        if (!toNode && this.mindMap.nodeManager) {
+            toNode = this.mindMap.nodeManager.nodes.get(connection.to);
+        }
         
         if (!fromNode || !toNode) return;
         
@@ -238,18 +270,60 @@ class ConnectionManager {
     // Connection Rendering
     renderConnection(connectionId) {
         const connection = this.connections.get(connectionId);
-        if (!connection) return;
+        if (!connection) {
+            console.warn('⚠️ Cannot render connection - not found:', connectionId);
+            return;
+        }
         
-        const fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
-        const toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+        console.log('🎨 Rendering connection:', connectionId, {
+            from: connection.from,
+            to: connection.to
+        });
         
-        if (!fromNode || !toNode) return;
+        // Check both old nodes array and new nodeManager structure
+        let fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
+        let toNode = this.mindMap.nodes.find(n => n.id === connection.to);
+        
+        // Fallback to nodeManager if available
+        if (!fromNode && this.mindMap.nodeManager) {
+            fromNode = this.mindMap.nodeManager.nodes.get(connection.from);
+        }
+        if (!toNode && this.mindMap.nodeManager) {
+            toNode = this.mindMap.nodeManager.nodes.get(connection.to);
+        }
+        
+        console.log('👀 Looking for nodes:', {
+            connectionId: connectionId,
+            fromId: connection.from,
+            toId: connection.to,
+            fromNodeFound: !!fromNode,
+            toNodeFound: !!toNode,
+            mindMapNodesCount: this.mindMap.nodes?.length || 0,
+            nodeManagerNodesCount: this.mindMap.nodeManager?.nodes?.size || 0
+        });
+        
+        if (!fromNode || !toNode) {
+            console.warn('⚠️ Could not find nodes for connection:', {
+                connectionId,
+                fromNode: connection.from,
+                toNode: connection.to,
+                fromNodeExists: !!fromNode,
+                toNodeExists: !!toNode
+            });
+            return;
+        }
         
         // Remove existing elements
         this.removeConnectionElements(connectionId);
         
         // Calculate path
         const pathData = this.createConnectionPath(fromNode, toNode, connectionId);
+        console.log('📏 Connection path created:', {
+            connectionId: connectionId,
+            pathData: pathData,
+            fromPos: { x: fromNode.x, y: fromNode.y },
+            toPos: { x: toNode.x, y: toNode.y }
+        });
         
         // Create elements
         this.createConnectionElements(connectionId, pathData, connection);
@@ -307,13 +381,15 @@ class ConnectionManager {
             'data-connection-id': connectionId,
             d: pathData,
             fill: 'none',
-            'marker-end': 'url(#arrowhead)',
-            stroke: isSelected ? '#38BDF8' : connection.style.stroke,
-            'stroke-width': isSelected ? '3' : connection.style.strokeWidth
+            'marker-end': isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)',
+            stroke: isSelected ? '#38BDF8' : 'url(#connectionGradient)',
+            'stroke-width': isSelected ? '4' : '3'
         });
         
         if (isSelected) {
-            path.style.filter = 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.4))';
+            path.style.filter = 'drop-shadow(0 0 12px rgba(56, 189, 248, 0.8)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3))';
+        } else {
+            path.style.filter = 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))';
         }
         
         // Overlay for clicking - transparent by default
@@ -753,8 +829,10 @@ class ConnectionManager {
         const path = this.connectionLayer.querySelector(`[data-connection-id="${connectionId}"].connection-line`);
         if (path) {
             path.setAttribute('stroke', '#38BDF8');
-            path.setAttribute('stroke-width', '3');
-            path.style.filter = 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.4))';
+            path.setAttribute('stroke-width', '4');
+            path.setAttribute('marker-end', 'url(#arrowhead-selected)');
+            path.style.filter = 'drop-shadow(0 0 12px rgba(56, 189, 248, 0.8)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3))';
+            path.classList.add('selected');
         }
         
         // Show existing control points without clearing them
@@ -774,9 +852,11 @@ class ConnectionManager {
         // Clear main path highlights for ALL connections  
         const allPaths = this.connectionLayer.querySelectorAll('.connection-line');
         allPaths.forEach(path => {
-            path.setAttribute('stroke', '#6B7280'); // Default gray color
-            path.setAttribute('stroke-width', '2');
-            path.style.filter = '';
+            path.setAttribute('stroke', 'url(#connectionGradient)'); // Use gradient for elegant appearance
+            path.setAttribute('stroke-width', '3');
+            path.setAttribute('marker-end', 'url(#arrowhead)');
+            path.style.filter = 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1))';
+            path.classList.remove('selected');
         });
         
         this.selectedConnection = null;

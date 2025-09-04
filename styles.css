@@ -10,7 +10,7 @@
     --node-stroke: #4B5563;
     --node-selected-bg: #F59E0B;
     --node-selected-stroke: #D97706;
-    --connection-stroke: #6B7280;
+    --connection-stroke: url(#connectionGradient);
     --font-family: 'Poppins', sans-serif;
     --success-color: #10B981;
     --error-color: #F43F5E;
@@ -686,19 +686,23 @@ body {
 
 .connection-line {
     stroke: var(--connection-stroke);
-    stroke-width: 2;
+    stroke-width: 3;
     fill: none;
     marker-end: url(#arrowhead);
-    transition: stroke 0.3s, stroke-width 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     stroke-linecap: round;
     stroke-linejoin: round;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15)) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+    opacity: 1;
 }
 
 .connection-line:hover {
     stroke: var(--accent-color);
     stroke-width: 4;
     cursor: pointer;
-    filter: drop-shadow(0 0 4px rgba(52, 152, 219, 0.5));
+    filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.6)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    opacity: 1;
+    transform: translateZ(0); /* Hardware acceleration */
 }
 
 /* Control Point Handles */
@@ -943,8 +947,19 @@ body {
 /* Enhanced visual feedback for selected connections */
 .connection-line.selected {
     stroke: var(--accent-color);
-    stroke-width: 3;
-    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.4));
+    stroke-width: 4;
+    filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.8)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+    opacity: 1;
+    animation: selectedPulse 2s ease-in-out infinite;
+}
+
+@keyframes selectedPulse {
+    0%, 100% { 
+        filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.8)) drop-shadow(0 3px 6px rgba(0, 0, 0, 0.3));
+    }
+    50% { 
+        filter: drop-shadow(0 0 20px rgba(56, 189, 248, 1.0)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+    }
 }
 
 /* Smooth animations for all connection elements */
