@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npx http-server:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

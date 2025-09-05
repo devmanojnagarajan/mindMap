@@ -6,7 +6,6 @@ class MindMap extends EventEmitter {
     constructor(container, options = {}) {
         super();
         
-        console.log('🚀 Initializing MindMap...');
         
         // Initialize configuration
         this.config = Config;
@@ -30,7 +29,6 @@ class MindMap extends EventEmitter {
         // Load any existing data
         this.loadInitialData();
         
-        console.log('✅ MindMap initialized successfully');
         this.emit('initialized');
     }
     
@@ -58,7 +56,6 @@ class MindMap extends EventEmitter {
             throw new Error('MindMap: Canvas element not found');
         }
         
-        console.log('📊 DOM elements initialized');
     }
     
     /**
@@ -95,7 +92,6 @@ class MindMap extends EventEmitter {
             dragThreshold: this.config.get('nodes.dragThreshold', 5)
         };
         
-        console.log('🔧 State initialized');
     }
     
     /**
@@ -120,7 +116,6 @@ class MindMap extends EventEmitter {
                 debug: this.config.get('app.debug', false)
             });
             
-            console.log('🎛️ Managers initialized');
             
             // Initialize all managers
             Object.values(this.managers).forEach(manager => {
@@ -157,7 +152,6 @@ class MindMap extends EventEmitter {
         // Toolbar events
         this.setupToolbarEvents();
         
-        console.log('🎧 Event listeners setup');
     }
     
     /**
@@ -191,7 +185,6 @@ class MindMap extends EventEmitter {
         this.initializeLayers();
         this.updateViewport();
         
-        console.log('🖼️ Canvas initialized');
     }
     
     /**
@@ -214,7 +207,6 @@ class MindMap extends EventEmitter {
             ui: this.createLayer('ui-layer')
         };
         
-        console.log('📚 Layers initialized');
     }
     
     /**
@@ -381,7 +373,6 @@ class MindMap extends EventEmitter {
             this.createInitialNode();
         }
         
-        console.log('💾 Initial data loaded');
     }
     
     /**

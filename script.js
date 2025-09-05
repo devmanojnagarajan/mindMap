@@ -1,8 +1,6 @@
 class MindMap {
     constructor() {
-        console.log('🚀 Initializing MindMap...');
         this.canvas = document.getElementById('canvas');
-        console.log('📊 Canvas element:', this.canvas);
         this.nodes = [];
         this.connections = [];
         this.pendingConnections = []; // Persistent pending connections
@@ -18,9 +16,6 @@ class MindMap {
                 this.nodeManager = new NodeManager(this);
                 this.connectionManager = new ConnectionManager(this);
                 this.panelManager = new PanelManager(this);
-                console.log('🔵 NodeManager initialized successfully');
-                console.log('🔗 ConnectionManager initialized successfully');
-                console.log('🎛️ PanelManager initialized successfully');
                 
                 // Clear any stuck selections from fallback rendering
                 this.clearSelection();
@@ -28,10 +23,8 @@ class MindMap {
                 // Clean up any duplicate or orphaned nodes
                 this.cleanupDuplicateNodes();
                 
-                
                 // Add root node only if no nodes exist
                 if (this.nodes.length === 0) {
-                    console.log('📍 Creating initial setup with nodes and connections');
                     this.createInitialSetup();
                 }
             } catch (error) {
@@ -167,7 +160,6 @@ class MindMap {
                 if (this.connectionManager) {
                     this.connectionManager.deselectAllConnections();
                 }
-                console.log('🖱️ Escape key pressed - clearing selections');
             } else if (e.key === ' ') {
                 e.preventDefault();
                 this.isSpacePressed = true;
@@ -230,7 +222,6 @@ class MindMap {
             this.nodeManager.nodes.clear();
             this.nodeManager.selectedNodes.clear();
             this.nodeManager.selectedNode = null;
-            console.log('🔄 NodeManager nodes cleared');
         }
         
     }
@@ -245,17 +236,10 @@ class MindMap {
         const node2 = this.addNode(centerX + 250, centerY - 120, 'Node 2');
         const node3 = this.addNode(centerX, centerY + 200, 'Node 3');
         
-        console.log('📍 Created initial nodes:', {
-            central: centralNode?.id,
-            node1: node1?.id,
-            node2: node2?.id,
-            node3: node3?.id
-        });
         
         // Create connections between nodes so users can experiment with curve points
         setTimeout(() => {
             if (this.connectionManager && centralNode && node1 && node2 && node3) {
-                console.log('🔗 Creating sample connections for curve experimentation');
                 
                 // Force re-render all connections to ensure proper gradient application
                 setTimeout(() => {
@@ -270,18 +254,13 @@ class MindMap {
                         
                         const connectionCount = this.connectionManager.connections.size;
                         const visibleConnections = document.querySelectorAll('.connection-line').length;
-                        console.log('🎨 Initial connections rendered with proper gradients:', {
-                            totalConnections: connectionCount,
-                            visibleConnections: visibleConnections,
-                            connectionIds: Array.from(this.connectionManager.connections.keys())
-                        });
                     }, 100);
                 }, 50);
                 
-                console.log('  • Click on connections to add orange control points');
-                console.log('  • Alt+Click on connections to add green interpolation points');
-                console.log('  • Right-click on connections for more options');
-                console.log('  • Drag the points to reshape curves');
+                // Click on connections to add orange control points
+                // Alt+Click on connections to add green interpolation points
+                // Right-click on connections for more options
+                // Drag the points to reshape curves
             }
         }, 300);
     }
@@ -703,7 +682,6 @@ class MindMap {
         }
         
         // Fallback rendering method
-        console.log('🔗 renderConnections called (fallback mode)');
         console.log('Total connections:', this.connections.length);
         
         const existingConnections = document.querySelectorAll('.connection-line');
@@ -771,17 +749,11 @@ class MindMap {
                     clickOverlay.style.pointerEvents = 'all';
                     clickOverlay.style.cursor = 'pointer';
                     
-                    console.log('🎯 Created connection overlay:', {
-                        connectionId: connection.id,
-                        pathData: pathData.substring(0, 50) + '...',
-                        strokeWidth: clickOverlay.getAttribute('stroke-width'),
-                        pointerEvents: clickOverlay.style.pointerEvents
-                    });
                     
                     // Add click handler for control points and deletion to the overlay
                     clickOverlay.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        console.log('🔥 CONNECTION OVERLAY CLICKED! 🔥');
+                        // CONNECTION OVERLAY CLICKED
                         console.log('Connection ID:', connection.id);
                         console.log('Event details:', {
                             clientX: e.clientX,
@@ -793,11 +765,9 @@ class MindMap {
                         
                         if (e.ctrlKey || e.altKey) {
                             // Delete connection
-                            console.log('🗑️ Deleting connection:', connection.id);
                             this.deleteConnection(connection.id);
                         } else if (e.shiftKey) {
                             // Toggle control points visibility
-                            console.log('👁️ Toggling control points for:', connection.id);
                             if (this.connectionManager) {
                                 // Toggle control points visibility
                                 const controlData = this.connectionManager.controlPoints.get(connection.id);
@@ -809,7 +779,6 @@ class MindMap {
                             }
                         } else {
                             // Regular click - handle control points using new manager
-                            console.log('🎯 Handling control point interaction for connection:', connection.id);
                             this.handleControlPointClick(e, connection.id);
                         }
                     });
@@ -1043,19 +1012,11 @@ class MindMap {
                                        clickedElement.closest('.node-inner-hit-area') ||
                                        clickedElement.closest('.node-outer-hit-group');
                     
-                    console.log('🖱️ Canvas click detected:', {
-                        target: clickedElement,
-                        tagName: clickedElement.tagName,
-                        className: clickedElement.className,
-                        isNodeClick: isNodeClick,
-                        willClearSelection: !isNodeClick
-                    });
                     
                     if (!isNodeClick) {
                         console.log('🧹 Calling clearSelection() from canvas click');
                         this.clearSelection();
                     } else {
-                        console.log('🎯 Node click detected, NOT clearing selection');
                     }
                 }
                 this.selectionRectangle.style.display = 'none';
@@ -1968,7 +1929,6 @@ class MindMap {
     }
 
     createControlPointHandle(connectionId, pointId, x, y, label) {
-        console.log('🔧 createControlPointHandle called');
         console.log('Parameters:', {connectionId, pointId, x, y, label});
         
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
@@ -2176,7 +2136,6 @@ class MindMap {
                     console.log('  • Shift+Click connections to toggle interpolation point visibility');
                     console.log('  • Add multiple points for complex curve shapes');
                     console.log('');
-                    console.log('🎛️ OTHER CONTROLS:');
                     console.log('  • Ctrl+Click connections to delete entire connection');
                     console.log('  • Each connection can have unlimited interpolation points');
                     console.log('  • Curves use smooth Catmull-Rom spline interpolation');
@@ -2594,7 +2553,6 @@ class MindMap {
         const worldX = this.viewBox.x + (clickX / rect.width) * this.viewBox.width;
         const worldY = this.viewBox.y + (clickY / rect.height) * this.viewBox.height;
         
-        console.log('🎯 Adding control point at:', {worldX, worldY});
         
         // Use the new control points manager
         const success = this.connectionManager.addControlPoint(connectionId, worldX, worldY);
@@ -3216,7 +3174,6 @@ class MindMap {
 document.addEventListener('DOMContentLoaded', () => {
     console.log('📄 DOM Content Loaded - Starting MindMap initialization');
     const mindMap = new MindMap();
-    console.log('🎯 MindMap instance created:', mindMap);
 
     // Test connections removed to avoid duplicate nodes
 

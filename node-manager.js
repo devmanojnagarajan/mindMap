@@ -47,7 +47,6 @@ class NodeManager {
             cornerRadius: 15
         };
         
-        console.log('🔵 NodeManager initialized');
         this.setupEventListeners();
     }
 
@@ -58,17 +57,14 @@ class NodeManager {
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Delete' && (this.selectedNodes.size > 0 || (this.mindMap.connectionManager && this.mindMap.connectionManager.selectedConnection))) {
-                console.log('🗑️ Delete key pressed - deleting selected nodes and connections');
                 
                 // Delete selected nodes
                 if (this.selectedNodes.size > 0) {
-                    console.log('🗑️ Deleting selected nodes:', Array.from(this.selectedNodes));
                     this.deleteSelectedNodes();
                 }
                 
                 // Delete selected connections
                 if (this.mindMap.connectionManager && this.mindMap.connectionManager.selectedConnection) {
-                    console.log('🗑️ Deleting selected connection:', this.mindMap.connectionManager.selectedConnection);
                     this.mindMap.connectionManager.deleteConnection(this.mindMap.connectionManager.selectedConnection);
                 }
             }
@@ -90,7 +86,6 @@ class NodeManager {
                     
                     // Also select all connections if connection manager exists
                     if (this.mindMap.connectionManager) {
-                        console.log('🔄 Selecting all nodes and connections');
                         // For now, just ensure we can delete connections when selected individually
                         // TODO: Implement multi-connection selection in connection manager
                     }
@@ -208,7 +203,6 @@ class NodeManager {
             this.deleteNodeConnections(nodeId);
         }
         
-        console.log('🗑️ Node deleted:', nodeId);
         return true;
     }
 
@@ -306,7 +300,6 @@ class NodeManager {
             this.animateNodeIn(nodeGroup);
         }
         
-        console.log('🎨 Node rendered:', node.id);
         return nodeGroup;
     }
 
@@ -672,18 +665,12 @@ class NodeManager {
             
             // Enhanced debug logging for hit detection (only when target changes)
             if (targetNodeId !== currentTarget) {
-                console.log('🎯 Hit detection change:', {
-                    from: currentTarget,
-                    to: targetNodeId,
-                    element: element?.tagName,
-                    elementId: element?.id,
-                    sourceNodeId: node.id
-                });
+                // Target changed logic could go here if needed
             }
             
             // Debug logging (can be removed for production)
             if (targetNodeId && targetNodeId !== node.id) {
-                console.debug('🎯 Target node detected:', targetNodeId);
+                // Target node detected
             }
             
             // Update target highlighting
@@ -708,17 +695,11 @@ class NodeManager {
             
             // Debug logging for target detection
             if (currentTarget !== previousTarget) {
-                console.log('🎯 Current target changed:', {
-                    from: previousTarget,
-                    to: currentTarget,
-                    detectedNodeId: targetNodeId,
-                    sourceNodeId: node.id
-                });
+                // Target changed
             }
         };
         
         const handleMouseUp = (upEvent) => {
-            console.log('🖱️ Mouse up event fired!', { x: upEvent.clientX, y: upEvent.clientY });
             
             // Hide drag line first to prevent it from blocking hit detection
             dragLine.style.display = 'none';
@@ -728,15 +709,6 @@ class NodeManager {
             const finalTargetGroup = finalElement?.closest('[data-node-id]');
             const finalTargetId = finalTargetGroup?.getAttribute('data-node-id');
             
-            console.log('🎯 Final hit detection on mouse up:', {
-                mousePos: { x: upEvent.clientX, y: upEvent.clientY },
-                finalElement: finalElement?.tagName,
-                finalElementId: finalElement?.id,
-                finalTargetGroup: finalTargetGroup?.tagName,
-                finalTargetId: finalTargetId,
-                currentTarget: currentTarget,
-                sourceNodeId: node.id
-            });
             
             // Use the final hit detection result, but fallback to currentTarget if available
             let actualTarget = (finalTargetId && finalTargetId !== node.id) ? finalTargetId : null;
@@ -744,7 +716,6 @@ class NodeManager {
             // If final hit detection failed but we had a target during mouse move, use that
             if (!actualTarget && currentTarget) {
                 actualTarget = currentTarget;
-                console.log('🎯 Using currentTarget as fallback:', actualTarget);
             }
             
             // Remove source node highlight
@@ -764,21 +735,9 @@ class NodeManager {
                 }
             }
             
-            console.log('🔗 Connection creation attempt:', {
-                currentTargetFromMove: currentTarget,
-                actualTargetFromHitTest: actualTarget,
-                usingTarget: actualTarget,
-                sourceNode: node.id
-            });
             
             if (actualTarget) {
                 const targetNode = this.nodes.get(actualTarget);
-                console.log('🎯 Creating connection:', {
-                    from: node.id,
-                    to: actualTarget,
-                    targetNodeExists: !!targetNode,
-                    connectionManagerExists: !!this.mindMap.connectionManager
-                });
                 
                 if (targetNode && this.mindMap.connectionManager) {
                     this.mindMap.connectionManager.createConnection(node, targetNode);
@@ -906,7 +865,6 @@ class NodeManager {
         
         this.currentTarget = null;
         this.hasFoundTarget = false; // Reset target found flag
-        console.log('🔗 Connection creation initialized for:', sourceNode.id);
     }
     
     /**
@@ -930,7 +888,6 @@ class NodeManager {
         
         // Switch to node dragging mode
         this.isDragging = true;
-        console.log('🖱️ Switched to node drag mode for:', sourceNode.id);
     }
     
     /**
@@ -962,12 +919,6 @@ class NodeManager {
         
         // Only log when target changes to reduce noise
         if (targetNodeId !== this.currentTarget) {
-            console.log('🔍 Target changed:', {
-                from: this.currentTarget,
-                to: targetNodeId,
-                element: element?.tagName,
-                sourceNodeId: sourceNode.id
-            });
         }
         
         // If we've moved significantly and haven't found a target, switch to node drag mode
@@ -977,7 +928,6 @@ class NodeManager {
             const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
             
             if (distance > this.dragThreshold * 3) { // Give more distance for connection attempt
-                console.log('🔄 Switching to node drag mode - no target found');
                 this.switchToNodeDragMode(sourceNode);
                 return;
             }
@@ -1012,17 +962,10 @@ class NodeManager {
      * Complete connection creation
      */
     completeConnectionCreation(e, sourceNode) {
-        console.log('🔗 Completing connection creation from:', sourceNode.id);
         
         // Use the current target we've been tracking during the drag
         const actualTarget = this.currentTarget;
         
-        console.log('🔗 Connection completion attempt:', {
-            sourceNode: sourceNode.id,
-            currentTarget: this.currentTarget,
-            actualTarget: actualTarget,
-            hasFoundTarget: this.hasFoundTarget
-        });
         
         // Clean up visual elements
         const dragLine = this.mindMap.dragConnectionLine;
@@ -1046,19 +989,13 @@ class NodeManager {
         if (actualTarget) {
             const targetNode = this.nodes.get(actualTarget);
             if (targetNode && this.mindMap.connectionManager) {
-                console.log('🎯 Creating connection:', {
-                    from: sourceNode.id,
-                    to: actualTarget
-                });
                 
                 this.mindMap.connectionManager.createConnection(sourceNode, targetNode);
                 this.showConnectionFeedback(sourceNode, targetNode);
-                console.log('✅ Connection created successfully!');
             } else {
                 console.warn('❌ Target node or connection manager not found');
             }
         } else {
-            console.log('🚫 No valid target for connection creation');
         }
         
         // Reset connection state
@@ -1119,10 +1056,8 @@ class NodeManager {
                 this.selectNode(node);
             }
         } else {
-            console.log('🔗 Skipping node selection - connection creation in progress');
             // If this is a target node during connection creation, prevent further processing
             if (this.isCreatingConnection && this.connectionSourceNode && node.id !== this.connectionSourceNode.id) {
-                console.log('🎯 Target node clicked during connection creation - preventing default behavior');
                 e.preventDefault();
                 e.stopPropagation();
                 return;
@@ -1145,7 +1080,6 @@ class NodeManager {
         document.addEventListener('pointermove', handleMove);
         document.addEventListener('pointerup', handleUp);
         
-        console.log('🖱️ Node pointer down:', node.id);
     }
 
     /**
@@ -1168,7 +1102,6 @@ class NodeManager {
             // if we don't find a target after moving a bit more
             this.isCreatingConnection = true;
             this.connectionSourceNode = node;
-            console.log('🔗 Connection creation mode started for:', node.id);
             this.startConnectionCreation(e, node);
         }
         
@@ -1244,7 +1177,6 @@ class NodeManager {
             this.mindMap.connectionManager.renderAllConnections();
         }
         
-        console.log('🖱️ Node drag ended:', node.id);
     }
 
     /**
@@ -1364,7 +1296,6 @@ class NodeManager {
      * Select a node
      */
     selectNode(node, multiSelect = false) {
-        console.log('🎯 NodeManager.selectNode() called for node:', node.id, 'multiSelect:', multiSelect);
         
         // Set timestamp to prevent immediate clearing
         this.lastNodeSelectionTime = Date.now();
@@ -1380,11 +1311,9 @@ class NodeManager {
         
         // Open properties panel for the selected node
         if (this.mindMap.panelManager) {
-            console.log('🎛️ Opening panel for node:', node.id);
             this.mindMap.panelManager.open(node);
         }
         
-        console.log('🎯 Node selected:', node.id);
     }
 
     /**
@@ -1425,7 +1354,6 @@ class NodeManager {
             this.mindMap.panelManager.forceClose();
         }
         
-        console.log('🔄 All nodes deselected');
     }
     
     /**
@@ -1433,7 +1361,6 @@ class NodeManager {
      * (used when switching to a new node selection)
      */
     deselectAllNodesWithoutClosingPanel() {
-        console.log('🔄 Deselecting all nodes without closing panel');
         
         this.selectedNodes.forEach(nodeId => {
             const node = this.nodes.get(nodeId);
@@ -1444,7 +1371,6 @@ class NodeManager {
         this.selectedNode = null;
         
         // Don't close the panel - we're switching to a new node
-        console.log('🔄 All nodes deselected (panel kept open)');
     }
 
     /**
@@ -1462,7 +1388,6 @@ class NodeManager {
             this.selectedNode = [...this.nodes.values()][0];
         }
         
-        console.log(`🎯 All nodes selected: ${this.selectedNodes.size}`);
     }
 
     /**
@@ -1513,12 +1438,9 @@ class NodeManager {
      * Clear all selections
      */
     clearSelection(force = false) {
-        console.log('🔄 NodeManager.clearSelection() called, force:', force);
-        console.trace('clearSelection call stack:');
         
         // Check if we recently selected a node (within last 1 second) and not forced
         if (!force && this.lastNodeSelectionTime && (Date.now() - this.lastNodeSelectionTime) < 1000) {
-            console.log('🛡️ Ignoring clearSelection - node was just selected');
             return;
         }
         
@@ -1546,7 +1468,6 @@ class NodeManager {
             this.mindMap.panelManager.forceClose();
         }
         
-        console.log('🔄 All selections cleared');
     }
 
     /**
@@ -1562,7 +1483,6 @@ class NodeManager {
         this.selectedNodes.clear();
         this.selectedNode = null;
         
-        console.log(`🗑️ Deleted ${nodeIds.length} nodes`);
     }
 
     /**
@@ -1578,7 +1498,6 @@ class NodeManager {
             }
         });
         
-        console.log(`📋 Copied ${this.clipboard.length} nodes`);
     }
 
     /**
@@ -1609,7 +1528,6 @@ class NodeManager {
             this.selectNode(pastedNode, true);
         });
         
-        console.log(`📋 Pasted ${this.clipboard.length} nodes`);
     }
 
     /**
@@ -1697,7 +1615,6 @@ class NodeManager {
             this.renderNode(node);
         }
         
-        console.log(`🎨 Rendered ${this.nodes.size} nodes`);
     }
 
     /**
@@ -1711,7 +1628,6 @@ class NodeManager {
         this.mindMap.nodes = [];
         this.nodeIdCounter = 1;
         
-        console.log('🧹 All nodes cleared');
     }
 
     /**
@@ -1738,7 +1654,6 @@ class NodeManager {
         });
         
         this.renderAllNodes();
-        console.log(`📥 Imported ${nodeData.length} nodes`);
     }
 
     /**

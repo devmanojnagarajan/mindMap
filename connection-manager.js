@@ -50,7 +50,6 @@ class ConnectionManager {
             setTimeout(() => this.ensureGradientsReady(), 50);
             return false;
         }
-        console.log('✅ Connection gradients are ready');
         return true;
     }
     
@@ -140,17 +139,10 @@ class ConnectionManager {
     
     // Connection Management
     createConnection(fromNode, toNode, options = {}) {
-        console.log('🔗 Creating connection:', {
-            from: fromNode.id,
-            to: toNode.id,
-            fromExists: !!fromNode,
-            toExists: !!toNode
-        });
         
         // Check for existing connection
         const existingId = this.findConnection(fromNode.id, toNode.id);
         if (existingId) {
-            console.log('🔗 Connection already exists:', existingId);
             this.selectConnection(existingId);
             return existingId;
         }
@@ -275,10 +267,6 @@ class ConnectionManager {
             return;
         }
         
-        console.log('🎨 Rendering connection:', connectionId, {
-            from: connection.from,
-            to: connection.to
-        });
         
         // Check both old nodes array and new nodeManager structure
         let fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
@@ -565,17 +553,12 @@ class ConnectionManager {
     
     // Control Points
     addControlPoint(connectionId, x, y) {
-        console.log('📍 addControlPoint called with:', { connectionId, x, y });
         
         const connection = this.connections.get(connectionId);
         const controlData = this.controlPoints.get(connectionId);
         
-        console.log('🔍 Connection found:', !!connection);
-        console.log('🔍 ControlData found:', !!controlData);
-        console.log('🔍 Current control points:', controlData ? controlData.points.length : 'N/A');
         
         if (!connection || !controlData || controlData.points.length >= 2) {
-            console.log('❌ Cannot add control point - condition failed');
             return false;
         }
         
@@ -592,29 +575,23 @@ class ConnectionManager {
         connection.controlPoints.push(newPoint);
         controlData.visible = true;
         
-        console.log('🎨 Rendering connection and showing control points');
         this.renderConnection(connectionId);
         this.showControlPoints(connectionId);
         
-        console.log('✅ Control point creation completed');
         return true;
     }
     
     showControlPoints(connectionId) {
-        console.log('👁️ showControlPoints called for:', connectionId);
         
         const controlData = this.controlPoints.get(connectionId);
-        console.log('🔍 Control data:', controlData);
         
         if (!controlData || controlData.points.length === 0) {
-            console.log('❌ No control data or no points');
             return;
         }
         
         this.hideAllControlPoints();
         
         controlData.visible = true;
-        console.log('🎨 Creating', controlData.points.length, 'control point handles');
         
         controlData.points.forEach((point, index) => {
             console.log(`➕ Creating handle ${index} at (${point.x}, ${point.y})`);
@@ -622,7 +599,6 @@ class ConnectionManager {
         });
         
         this.renderConnection(connectionId);
-        console.log('✅ showControlPoints completed');
     }
     
     createControlPointHandle(connectionId, point, index) {

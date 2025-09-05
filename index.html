@@ -1,275 +1,503 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Coggle Clone - Mind Mapping Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css" rel="stylesheet"/>
-    <link rel="stylesheet" href="https://unpkg.com/notie/dist/notie.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link
+      href="https://cdn.jsdelivr.net/npm/remixicon@4.3.0/fonts/remixicon.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/notie/dist/notie.min.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap"
+      rel="stylesheet"
+    />
     <script src="https://unpkg.com/@popperjs/core@2"></script>
     <script src="https://unpkg.com/tippy.js@6"></script>
     <script src="https://unpkg.com/notie/dist/notie.min.js"></script>
-</head>
-<body>
+  </head>
+  <body>
     <div id="app">
-        <header class="toolbar">
-            <h1>Mind Map</h1>
-            <div class="controls">
-                <div class="control-group">
-                    <button id="save-map" data-tippy-content="Save Map"><i class="ri-save-line"></i></button>
-                    <button id="load-map" data-tippy-content="Load Map"><i class="ri-folder-open-line"></i></button>
-                </div>
-                <div class="control-group">
-                    <button id="login-btn" data-tippy-content="Login with Google"><i class="ri-google-fill"></i></button>
-                </div>
-            </div>
-        </header>
-        
-        <div class="main-content">
-            <div id="canvas-container">
-                <svg id="canvas" width="100%" height="100%">
-                    <defs>
-                        <!-- Enhanced arrowhead with gradient -->
-                        <linearGradient id="arrowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:#D1D5DB;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#F3F4F6;stop-opacity:1" />
-                        </linearGradient>
-                        
-                        <linearGradient id="arrowGradientSelected" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:#0EA5E9;stop-opacity:1" />
-                            <stop offset="100%" style="stop-color:#38BDF8;stop-opacity:1" />
-                        </linearGradient>
-                        
-                        <!-- Connection line gradient - Whitish geometric appeal -->
-                        <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:#E5E7EB;stop-opacity:0.9" />
-                            <stop offset="50%" style="stop-color:#F9FAFB;stop-opacity:1.0" />
-                            <stop offset="100%" style="stop-color:#E5E7EB;stop-opacity:0.9" />
-                        </linearGradient>
-                        
-                        <marker id="arrowhead" markerWidth="12" markerHeight="8" 
-                                refX="11" refY="4" orient="auto" markerUnits="strokeWidth">
-                            <polygon points="0 0, 12 4, 0 8" 
-                                     fill="url(#arrowGradient)"
-                                     stroke="#9CA3AF" 
-                                     stroke-width="0.5"
-                                     style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));" />
-                        </marker>
-                        
-                        <marker id="arrowhead-selected" markerWidth="12" markerHeight="8" 
-                                refX="11" refY="4" orient="auto" markerUnits="strokeWidth">
-                            <polygon points="0 0, 12 4, 0 8" 
-                                     fill="url(#arrowGradientSelected)"
-                                     stroke="#0EA5E9" 
-                                     stroke-width="0.5"
-                                     style="filter: drop-shadow(0 2px 4px rgba(56, 189, 248, 0.4));" />
-                        </marker>
-                        <pattern id="grid" width="500" height="500" patternUnits="userSpaceOnUse">
-                            <path d="M 500 0 L 0 0 0 500" fill="none" stroke="#333" stroke-width="0.2" opacity="0.2"/>
-                        </pattern>
-                    </defs>
-                    <rect id="grid-background" x="-10000" y="-10000" width="20000" height="20000" fill="url(#grid)" />
-                    <rect id="selection-rectangle" x="0" y="0" width="0" height="0" fill="rgba(33, 150, 243, 0.2)" stroke="#2196F3" stroke-width="1" stroke-dasharray="5,5" style="display: none;" />
-                    <path id="drag-connection" d="" stroke="#3498db" stroke-width="3" fill="none" stroke-dasharray="8,4" marker-end="url(#arrowhead)" style="display: none; pointer-events: none;" />
-                    <g id="add-node-indicator" style="display: none; cursor: pointer;">
-                        <circle cx="0" cy="0" r="25" fill="rgba(52, 152, 219, 0.3)" stroke="#3498db" stroke-width="2" stroke-dasharray="5,3" pointer-events="all"/>
-                        <text x="0" y="0" text-anchor="middle" dominant-baseline="central" fill="#3498db" font-size="12" font-family="var(--font-family)" pointer-events="none">Click to add</text>
-                    </g>
-                </svg>
-            </div>
-            
-            <div id="bottom-toolbar">
-                <div class="controls">
-                    <div class="control-group">
-                        <button id="add-node" data-tippy-content="Add Node"><i class="ri-add-fill"></i></button>
-                        <button id="connect-mode" data-tippy-content="Connect Mode"><i class="ri-drag-move-2-fill"></i></button>
-                    </div>
-                    <div class="control-group">
-                        <button id="zoom-in" data-tippy-content="Zoom In"><i class="ri-zoom-in-line"></i></button>
-                        <button id="zoom-out" data-tippy-content="Zoom Out"><i class="ri-zoom-out-line"></i></button>
-                        <button id="zoom-reset" data-tippy-content="Reset Zoom"><i class="ri-zoom-in-fill"></i></button>
-                    </div>
-                    <div class="control-group">
-                        <button id="delete-map" data-tippy-content="Delete Map"><i class="ri-delete-bin-line"></i></button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Node Customization Panel -->
-            <div id="node-panel" class="panel" style="display: none;">
-                <div class="panel-header">
-                    <h3>Node Settings</h3>
-                    <button id="close-panel"><i class="ri-close-line"></i></button>
-                </div>
-                <div class="panel-content">
-                    <!-- Image Upload Section -->
-                    <div class="section">
-                        <h4>Image</h4>
-                        <div class="image-controls">
-                            <input type="file" id="image-upload" accept="image/*" style="display: none;">
-                            <button id="upload-image-btn"><i class="ri-image-add-line"></i> Add Image</button>
-                            <div id="image-preview" style="display: none;">
-                                <img id="preview-img" src="" alt="Preview">
-                                <div class="image-options">
-                                    <label>Position:</label>
-                                    <select id="image-position">
-                                        <option value="before">Before Text</option>
-                                        <option value="after">After Text</option>
-                                    </select>
-                                    <button id="remove-image"><i class="ri-delete-bin-line"></i></button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Text Styling Section -->
-                    <div class="section">
-                        <h4>Text Style</h4>
-                        <div class="text-controls">
-                            <div class="control-row">
-                                <label>Font Family:</label>
-                                <select id="font-family">
-                                    <option value="Poppins">Poppins</option>
-                                    <option value="Arial">Arial</option>
-                                    <option value="Georgia">Georgia</option>
-                                    <option value="Times New Roman">Times New Roman</option>
-                                    <option value="Courier New">Courier New</option>
-                                </select>
-                            </div>
-                            <div class="control-row">
-                                <label>Font Size:</label>
-                                <input type="range" id="font-size" min="8" max="32" value="14">
-                                <span id="font-size-value">14px</span>
-                            </div>
-                            <div class="control-row">
-                                <label>Font Weight:</label>
-                                <select id="font-weight">
-                                    <option value="300">Light</option>
-                                    <option value="400">Normal</option>
-                                    <option value="600">Bold</option>
-                                </select>
-                            </div>
-                            <div class="control-row">
-                                <label>Text Color:</label>
-                                <input type="color" id="text-color" value="#F9FAFB">
-                            </div>
-                            <div class="control-row">
-                                <label>Alignment:</label>
-                                <select id="text-align">
-                                    <option value="left">Left</option>
-                                    <option value="center">Center</option>
-                                    <option value="right">Right</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Node Shape Section -->
-                    <div class="section">
-                        <h4>Node Shape</h4>
-                        <div class="shape-controls">
-                            <div class="control-row">
-                                <label>Shape:</label>
-                                <select id="node-shape">
-                                    <option value="circle">Circle</option>
-                                    <option value="rectangle">Rectangle</option>
-                                    <option value="rounded-rectangle">Rounded Rectangle</option>
-                                    <option value="triangle">Triangle</option>
-                                    <option value="pentagon">Pentagon</option>
-                                    <option value="hexagon">Hexagon</option>
-                                    <option value="diamond">Diamond</option>
-                                </select>
-                            </div>
-                            <div class="control-row" id="size-controls">
-                                <label>Width:</label>
-                                <input type="range" id="node-width" min="60" max="200" value="80">
-                                <span id="node-width-value">80px</span>
-                            </div>
-                            <div class="control-row">
-                                <label>Height:</label>
-                                <input type="range" id="node-height" min="40" max="150" value="80">
-                                <span id="node-height-value">80px</span>
-                            </div>
-                            <div class="control-row" id="corner-radius-control" style="display: none;">
-                                <label>Corner Radius:</label>
-                                <input type="range" id="corner-radius" min="0" max="30" value="15">
-                                <span id="corner-radius-value">15px</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Node Color Section -->
-                    <div class="section">
-                        <h4>Node Color</h4>
-                        <div class="color-controls">
-                            <label>Background:</label>
-                            <input type="color" id="node-bg-color" value="#374151">
-                            <label>Border:</label>
-                            <input type="color" id="node-border-color" value="#4B5563">
-                        </div>
-                    </div>
-                    
-                    <!-- Share Section -->
-                    <div class="section">
-                        <h4>Share</h4>
-                        <div class="share-controls">
-                            <button id="export-image"><i class="ri-image-line"></i> Export as Image</button>
-                            <button id="copy-share-link"><i class="ri-share-line"></i> Copy Share Link</button>
-                            <button id="export-json"><i class="ri-file-download-line"></i> Export JSON</button>
-                            <input type="file" id="import-json" accept=".json" style="display: none;">
-                            <button id="import-json-btn"><i class="ri-file-upload-line"></i> Import JSON</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="minimap-container">
-                <div id="minimap-header">Navigation</div>
-                <svg id="minimap" width="200" height="150">
-                    <rect id="minimap-background" width="100%" height="100%" fill="#1a1a1a" stroke="#444" stroke-width="1"/>
-                    <rect id="viewport-indicator" width="20" height="20" fill="none" stroke="#4CAF50" stroke-width="2" opacity="0.7"/>
-                </svg>
-            </div>
-
-            <!-- Control Point Instructions -->
-            <div id="control-point-help" class="help-tooltip">
-                <div class="help-header">
-                    <h4>Control Points Help</h4>
-                    <button id="help-close">×</button>
-                </div>
-                <div class="help-content">
-                    <p><strong>Control Points Usage:</strong></p>
-                    <ol>
-                        <li><strong>Create connections</strong>: Use connect mode to link nodes first</li>
-                        <li><strong>Add control points</strong>: Click any connection to add orange control points (max 2 per connection)</li>
-                        <li><strong>Add interpolation points</strong>: Alt+Click connection to add green interpolation points</li>
-                        <li><strong>Drag to reshape</strong>: Drag any visible control point to bend and reshape curves</li>
-                        <li><strong>Delete points</strong>: Double-click any control point or right-click → delete</li>
-                        <li><strong>Toggle visibility</strong>: Shift+Click connection or use right-click menu</li>
-                        <li><strong>Right-click connection</strong>: Opens full menu with all curve options</li>
-                        <li><strong>Delete connection</strong>: Ctrl+Click (or Cmd+Click on Mac)</li>
-                    </ol>
-                </div>
-            </div>
+      <header class="toolbar">
+        <h1>Mind Map</h1>
+        <div class="controls">
+          <div class="control-group">
+            <button id="save-map" data-tippy-content="Save Map">
+              <i class="ri-save-line"></i>
+            </button>
+            <button id="load-map" data-tippy-content="Load Map">
+              <i class="ri-folder-open-line"></i>
+            </button>
+          </div>
+          <div class="control-group">
+            <button id="login-btn" data-tippy-content="Login with Google">
+              <i class="ri-google-fill"></i>
+            </button>
+          </div>
         </div>
+      </header>
+
+      <div class="main-content">
+        <div id="canvas-container">
+          <svg id="canvas" width="100%" height="100%">
+            <defs>
+              <!-- Enhanced arrowhead with gradient -->
+              <linearGradient
+                id="arrowGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop
+                  offset="0%"
+                  style="stop-color: #d1d5db; stop-opacity: 1"
+                />
+                <stop
+                  offset="100%"
+                  style="stop-color: #f3f4f6; stop-opacity: 1"
+                />
+              </linearGradient>
+
+              <linearGradient
+                id="arrowGradientSelected"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop
+                  offset="0%"
+                  style="stop-color: #0ea5e9; stop-opacity: 1"
+                />
+                <stop
+                  offset="100%"
+                  style="stop-color: #38bdf8; stop-opacity: 1"
+                />
+              </linearGradient>
+
+              <!-- Connection line gradient - Whitish geometric appeal -->
+              <linearGradient
+                id="connectionGradient"
+                x1="0%"
+                y1="0%"
+                x2="100%"
+                y2="0%"
+              >
+                <stop
+                  offset="0%"
+                  style="stop-color: #e5e7eb; stop-opacity: 0.9"
+                />
+                <stop
+                  offset="50%"
+                  style="stop-color: #f9fafb; stop-opacity: 1"
+                />
+                <stop
+                  offset="100%"
+                  style="stop-color: #e5e7eb; stop-opacity: 0.9"
+                />
+              </linearGradient>
+
+              <marker
+                id="arrowhead"
+                markerWidth="12"
+                markerHeight="8"
+                refX="11"
+                refY="4"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <polygon
+                  points="0 0, 12 4, 0 8"
+                  fill="url(#arrowGradient)"
+                  stroke="#9CA3AF"
+                  stroke-width="0.5"
+                  style="filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2))"
+                />
+              </marker>
+
+              <marker
+                id="arrowhead-selected"
+                markerWidth="12"
+                markerHeight="8"
+                refX="11"
+                refY="4"
+                orient="auto"
+                markerUnits="strokeWidth"
+              >
+                <polygon
+                  points="0 0, 12 4, 0 8"
+                  fill="url(#arrowGradientSelected)"
+                  stroke="#0EA5E9"
+                  stroke-width="0.5"
+                  style="filter: drop-shadow(0 2px 4px rgba(56, 189, 248, 0.4))"
+                />
+              </marker>
+              <pattern
+                id="grid"
+                width="500"
+                height="500"
+                patternUnits="userSpaceOnUse"
+              >
+                <path
+                  d="M 500 0 L 0 0 0 500"
+                  fill="none"
+                  stroke="#333"
+                  stroke-width="0.2"
+                  opacity="0.2"
+                />
+              </pattern>
+            </defs>
+            <rect
+              id="grid-background"
+              x="-10000"
+              y="-10000"
+              width="20000"
+              height="20000"
+              fill="url(#grid)"
+            />
+            <rect
+              id="selection-rectangle"
+              x="0"
+              y="0"
+              width="0"
+              height="0"
+              fill="rgba(33, 150, 243, 0.2)"
+              stroke="#2196F3"
+              stroke-width="1"
+              stroke-dasharray="5,5"
+              style="display: none"
+            />
+            <path
+              id="drag-connection"
+              d=""
+              stroke="#3498db"
+              stroke-width="3"
+              fill="none"
+              stroke-dasharray="8,4"
+              marker-end="url(#arrowhead)"
+              style="display: none; pointer-events: none"
+            />
+            <g id="add-node-indicator" style="display: none; cursor: pointer">
+              <circle
+                cx="0"
+                cy="0"
+                r="25"
+                fill="rgba(52, 152, 219, 0.3)"
+                stroke="#3498db"
+                stroke-width="2"
+                stroke-dasharray="5,3"
+                pointer-events="all"
+              />
+              <text
+                x="0"
+                y="0"
+                text-anchor="middle"
+                dominant-baseline="central"
+                fill="#3498db"
+                font-size="12"
+                font-family="var(--font-family)"
+                pointer-events="none"
+              >
+                Click to add
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <div id="bottom-toolbar">
+          <div class="controls">
+            <div class="control-group">
+              <button id="add-node" data-tippy-content="Add Node">
+                <i class="ri-add-fill"></i>
+              </button>
+              <button id="connect-mode" data-tippy-content="Connect Mode">
+                <i class="ri-drag-move-2-fill"></i>
+              </button>
+            </div>
+            <div class="control-group">
+              <button id="zoom-in" data-tippy-content="Zoom In">
+                <i class="ri-zoom-in-line"></i>
+              </button>
+              <button id="zoom-out" data-tippy-content="Zoom Out">
+                <i class="ri-zoom-out-line"></i>
+              </button>
+              <button id="zoom-reset" data-tippy-content="Reset Zoom">
+                <i class="ri-zoom-in-fill"></i>
+              </button>
+            </div>
+            <div class="control-group">
+              <button id="delete-map" data-tippy-content="Delete Map">
+                <i class="ri-delete-bin-line"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Node Customization Panel -->
+        <div id="node-panel" class="panel" style="display: none">
+          <div class="panel-header">
+            <h3>Node Settings</h3>
+            <button id="close-panel"><i class="ri-close-line"></i></button>
+          </div>
+          <div class="panel-content">
+            <!-- Image Upload Section -->
+            <div class="section">
+              <h4>Image</h4>
+              <div class="image-controls">
+                <input
+                  type="file"
+                  id="image-upload"
+                  accept="image/*"
+                  style="display: none"
+                />
+                <button id="upload-image-btn">
+                  <i class="ri-image-add-line"></i> Add Image
+                </button>
+                <div id="image-preview" style="display: none">
+                  <img id="preview-img" src="" alt="Preview" />
+                  <div class="image-options">
+                    <label>Position:</label>
+                    <select id="image-position">
+                      <option value="before">Before Text</option>
+                      <option value="after">After Text</option>
+                    </select>
+                    <button id="remove-image">
+                      <i class="ri-delete-bin-line"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Text Styling Section -->
+            <div class="section">
+              <h4>Text Style</h4>
+              <div class="text-controls">
+                <div class="control-row">
+                  <label>Font Family:</label>
+                  <select id="font-family">
+                    <option value="Poppins">Poppins</option>
+                    <option value="Arial">Arial</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                  </select>
+                </div>
+                <div class="control-row">
+                  <label>Font Size:</label>
+                  <input
+                    type="range"
+                    id="font-size"
+                    min="8"
+                    max="32"
+                    value="14"
+                  />
+                  <span id="font-size-value">14px</span>
+                </div>
+                <div class="control-row">
+                  <label>Font Weight:</label>
+                  <select id="font-weight">
+                    <option value="300">Light</option>
+                    <option value="400">Normal</option>
+                    <option value="600">Bold</option>
+                  </select>
+                </div>
+                <div class="control-row">
+                  <label>Text Color:</label>
+                  <input type="color" id="text-color" value="#F9FAFB" />
+                </div>
+                <div class="control-row">
+                  <label>Alignment:</label>
+                  <select id="text-align">
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Node Shape Section -->
+            <div class="section">
+              <h4>Node Shape</h4>
+              <div class="shape-controls">
+                <div class="control-row">
+                  <label>Shape:</label>
+                  <select id="node-shape">
+                    <option value="circle">Circle</option>
+                    <option value="rectangle">Rectangle</option>
+                    <option value="rounded-rectangle">Rounded Rectangle</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="pentagon">Pentagon</option>
+                    <option value="hexagon">Hexagon</option>
+                    <option value="diamond">Diamond</option>
+                  </select>
+                </div>
+                <div class="control-row" id="size-controls">
+                  <label>Width:</label>
+                  <input
+                    type="range"
+                    id="node-width"
+                    min="60"
+                    max="200"
+                    value="80"
+                  />
+                  <span id="node-width-value">80px</span>
+                </div>
+                <div class="control-row">
+                  <label>Height:</label>
+                  <input
+                    type="range"
+                    id="node-height"
+                    min="40"
+                    max="150"
+                    value="80"
+                  />
+                  <span id="node-height-value">80px</span>
+                </div>
+                <div
+                  class="control-row"
+                  id="corner-radius-control"
+                  style="display: none"
+                >
+                  <label>Corner Radius:</label>
+                  <input
+                    type="range"
+                    id="corner-radius"
+                    min="0"
+                    max="30"
+                    value="15"
+                  />
+                  <span id="corner-radius-value">15px</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Node Color Section -->
+            <div class="section">
+              <h4>Node Color</h4>
+              <div class="color-controls">
+                <label>Background:</label>
+                <input type="color" id="node-bg-color" value="#374151" />
+                <label>Border:</label>
+                <input type="color" id="node-border-color" value="#4B5563" />
+              </div>
+            </div>
+
+            <!-- Share Section -->
+            <div class="section">
+              <h4>Share</h4>
+              <div class="share-controls">
+                <button id="export-image">
+                  <i class="ri-image-line"></i> Export as Image
+                </button>
+                <button id="copy-share-link">
+                  <i class="ri-share-line"></i> Copy Share Link
+                </button>
+                <button id="export-json">
+                  <i class="ri-file-download-line"></i> Export JSON
+                </button>
+                <input
+                  type="file"
+                  id="import-json"
+                  accept=".json"
+                  style="display: none"
+                />
+                <button id="import-json-btn">
+                  <i class="ri-file-upload-line"></i> Import JSON
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="minimap-container">
+          <div id="minimap-header">Navigation</div>
+          <svg id="minimap" width="200" height="150">
+            <rect
+              id="minimap-background"
+              width="100%"
+              height="100%"
+              fill="#1a1a1a"
+              stroke="#444"
+              stroke-width="1"
+            />
+            <rect
+              id="viewport-indicator"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="#4CAF50"
+              stroke-width="2"
+              opacity="0.7"
+            />
+          </svg>
+        </div>
+
+        <!-- Control Point Instructions -->
+        <div id="control-point-help" class="help-tooltip">
+          <div class="help-header">
+            <h4>Control Points Help</h4>
+            <button id="help-close">×</button>
+          </div>
+          <div class="help-content">
+            <p><strong>Control Points Usage:</strong></p>
+            <ol>
+              <li>
+                <strong>Create connections</strong>: Use connect mode to link
+                nodes first
+              </li>
+              <li>
+                <strong>Add control points</strong>: Click any connection to add
+                orange control points (max 2 per connection)
+              </li>
+              <li>
+                <strong>Add interpolation points</strong>: Alt+Click connection
+                to add green interpolation points
+              </li>
+              <li>
+                <strong>Drag to reshape</strong>: Drag any visible control point
+                to bend and reshape curves
+              </li>
+              <li>
+                <strong>Delete points</strong>: Double-click any control point
+                or right-click → delete
+              </li>
+              <li>
+                <strong>Toggle visibility</strong>: Shift+Click connection or
+                use right-click menu
+              </li>
+              <li>
+                <strong>Right-click connection</strong>: Opens full menu with
+                all curve options
+              </li>
+              <li>
+                <strong>Delete connection</strong>: Ctrl+Click (or Cmd+Click on
+                Mac)
+              </li>
+            </ol>
+          </div>
+        </div>
+      </div>
     </div>
-    
+
     <!-- Core modules -->
     <script src="core/utils.js?v=15"></script>
     <script src="core/event-emitter.js?v=15"></script>
     <script src="core/config-manager.js?v=15"></script>
     <script src="core/error-handler.js?v=15"></script>
     <script src="core/base-manager.js?v=15"></script>
-    
+
     <!-- Application modules -->
     <script src="node-manager.js?v=15"></script>
     <script src="connection-manager.js?v=15"></script>
     <script src="panel-manager.js?v=15"></script>
     <script src="script.js?v=15"></script>
     <script src="auth.js?v=15"></script>
-</body>
+  </body>
 </html>
