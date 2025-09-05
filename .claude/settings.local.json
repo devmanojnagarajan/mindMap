@@ -3,7 +3,11 @@
     "allow": [
       "Bash(npm run dev:*)",
       "Bash(npx http-server:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm install)",
+      "Bash(start:*)",
+      "Bash(git restore:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

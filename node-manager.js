@@ -162,6 +162,153 @@ class NodeManager {
     }
 
     /**
+     * Create a new node with given position and text
+     */
+    createNode(x, y, text = 'New Node', options = {}) {
+        const nodeId = `node_${this.nodeIdCounter++}`;
+        
+        const node = {
+            id: nodeId,
+            x: x,
+            y: y,
+            text: text,
+            radius: options.radius || 40,
+            image: options.image || null,
+            imagePosition: options.imagePosition || 'before',
+            shape: { ...this.defaultNodeShape, ...options.shape },
+            style: { ...this.defaultNodeStyle, ...options.style },
+            metadata: options.metadata || {},
+            created: Date.now(),
+            modified: Date.now()
+        };
+        
+        // Store in NodeManager
+        this.nodes.set(nodeId, node);
+        
+        // CRITICAL: Add to mindMap nodes array for connection compatibility
+        this.mindMap.nodes.push(node);
+        
+        // Create visual representation
+        this.renderNode(node);
+        
+        return node;
+    }
+
+    /**
+     * Render a node to the SVG canvas
+     */
+    renderNode(node, isUpdate = false) {
+        if (!this.nodeLayer) {
+            console.warn('NodeManager: nodeLayer not available for rendering');
+            return;
+        }
+        
+        // Remove existing node element if updating
+        if (isUpdate) {
+            const existingElement = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
+            if (existingElement) {
+                existingElement.remove();
+            }
+        }
+        
+        // Create node group
+        const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        nodeGroup.setAttribute('class', 'node-group');
+        nodeGroup.setAttribute('data-node-id', node.id);
+        nodeGroup.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+        
+        // Create node shape based on node.shape.type
+        const shape = this.createNodeShape(node);
+        nodeGroup.appendChild(shape);
+        
+        // Add text
+        const text = this.createNodeText(node);
+        nodeGroup.appendChild(text);
+        
+        // Add image if present
+        if (node.image) {
+            const image = this.createNodeImage(node);
+            nodeGroup.appendChild(image);
+        }
+        
+        // Add interactions
+        this.addNodeInteractions(nodeGroup, node);
+        
+        // Add to canvas
+        this.nodeLayer.appendChild(nodeGroup);
+        
+        return nodeGroup;
+    }
+
+    /**
+     * Create the shape element for a node
+     */
+    createNodeShape(node) {
+        const shape = node.shape;
+        const style = node.style;
+        
+        let shapeElement;
+        
+        switch (shape.type) {
+            case 'rectangle':
+                shapeElement = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                shapeElement.setAttribute('width', shape.width);
+                shapeElement.setAttribute('height', shape.height);
+                shapeElement.setAttribute('x', -shape.width / 2);
+                shapeElement.setAttribute('y', -shape.height / 2);
+                if (shape.cornerRadius) {
+                    shapeElement.setAttribute('rx', shape.cornerRadius);
+                }
+                break;
+            
+            case 'circle':
+            default:
+                shapeElement = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                shapeElement.setAttribute('r', Math.min(shape.width, shape.height) / 2);
+                break;
+        }
+        
+        // Apply styling
+        shapeElement.setAttribute('fill', style.backgroundColor);
+        shapeElement.setAttribute('stroke', style.borderColor);
+        shapeElement.setAttribute('stroke-width', '2');
+        
+        return shapeElement;
+    }
+
+    /**
+     * Create the text element for a node
+     */
+    createNodeText(node) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('dominant-baseline', 'central');
+        text.setAttribute('fill', node.style.textColor);
+        text.setAttribute('font-family', node.style.fontFamily);
+        text.setAttribute('font-size', node.style.fontSize);
+        text.setAttribute('font-weight', node.style.fontWeight);
+        text.textContent = node.text;
+        
+        return text;
+    }
+
+    /**
+     * Create the image element for a node (if present)
+     */
+    createNodeImage(node) {
+        if (!node.image) return null;
+        
+        const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+        image.setAttribute('href', node.image);
+        image.setAttribute('width', '32');
+        image.setAttribute('height', '32');
+        image.setAttribute('x', '-16');
+        image.setAttribute('y', node.imagePosition === 'before' ? '-30' : '10');
+        
+        return image;
+    }
+
+    /**
      * Delete a node and cleanup connections
      */
     deleteNode(nodeId) {

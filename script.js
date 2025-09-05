@@ -171,11 +171,9 @@ class MindMap {
                 this.pasteNodes();
             } else if (e.key === 't' || e.key === 'T') {
                 // TEMPORARY: Press 'T' to create a test control point
-                console.log('Creating test control point with T key');
                 this.createTestControlPoint();
                 
                 // TEMPORARY: Press 'C' to test connection clicking
-                console.log('Creating test connection with C key');
                 this.createTestConnection();
             }
         });
@@ -203,14 +201,12 @@ class MindMap {
     }
 
     cleanupDuplicateNodes() {
-        console.log('🧹 Cleaning up duplicate nodes...');
         
         // Remove all visual nodes from DOM
         const allNodeGroups = this.nodeLayer.querySelectorAll('[data-node-id]');
         
         allNodeGroups.forEach(group => {
             const nodeId = group.getAttribute('data-node-id');
-            console.log(`Removing visual node: ${nodeId}`);
             group.remove();
         });
         
@@ -649,7 +645,6 @@ class MindMap {
                 this.nodes.forEach(node => this.renderNode(node));
                 this.renderConnections();
                 
-                console.log('Shared mind map loaded successfully!');
                 
             } catch (error) {
                 console.error('Failed to load shared mind map:', error);
@@ -682,7 +677,6 @@ class MindMap {
         }
         
         // Fallback rendering method
-        console.log('Total connections:', this.connections.length);
         
         const existingConnections = document.querySelectorAll('.connection-line');
         const existingOverlays = document.querySelectorAll('.connection-overlay');
@@ -691,10 +685,8 @@ class MindMap {
         existingOverlays.forEach(overlay => overlay.remove());
 
         this.connections.forEach(connection => {
-            console.log('Processing connection:', connection.id, 'isTemporary:', connection.isTemporary);
             const fromNode = this.nodes.find(n => n.id === connection.from);
             const toNode = this.nodes.find(n => n.id === connection.to);
-            console.log('Found nodes - from:', fromNode?.id, 'to:', toNode?.id);
             
             if (fromNode && toNode) {
                 // Calculate connection points on node edges instead of centers
@@ -754,14 +746,6 @@ class MindMap {
                     clickOverlay.addEventListener('click', (e) => {
                         e.stopPropagation();
                         // CONNECTION OVERLAY CLICKED
-                        console.log('Connection ID:', connection.id);
-                        console.log('Event details:', {
-                            clientX: e.clientX,
-                            clientY: e.clientY,
-                            ctrlKey: e.ctrlKey,
-                            shiftKey: e.shiftKey,
-                            altKey: e.altKey
-                        });
                         
                         if (e.ctrlKey || e.altKey) {
                             // Delete connection
@@ -792,7 +776,6 @@ class MindMap {
                         testCircle.setAttribute('fill', 'red');
                         testCircle.setAttribute('class', 'test-circle');
                         this.connectionLayer.appendChild(testCircle);
-                        console.log('Test circle added at connection start');
                     }
                     
                     // Add hover effect with tooltip on the overlay
@@ -830,7 +813,6 @@ class MindMap {
                     // Add both elements to connection layer (behind nodes)
                     this.connectionLayer.appendChild(path);
                     this.connectionLayer.appendChild(clickOverlay);
-                    console.log('Connection line added to canvas with clickable styling');
                 }
             }
         });
@@ -865,7 +847,6 @@ class MindMap {
                 e.preventDefault(); // Prevent middle mouse scroll behavior
             } else if (e.button === 0) {
                 // Left click for selection
-                console.log('🔲 Starting rectangle selection at:', { worldX, worldY });
                 this.isSelecting = true;
                 this.selectionStart.x = worldX;
                 this.selectionStart.y = worldY;
@@ -957,7 +938,6 @@ class MindMap {
             if (this.dragDistance > this.dragThreshold) {
                 // Show selection rectangle
                 if (this.selectionRectangle.style.display === 'none') {
-                    console.log('🔲 Showing selection rectangle');
                     this.selectionRectangle.style.display = 'block';
                 }
                 
@@ -1014,7 +994,6 @@ class MindMap {
                     
                     
                     if (!isNodeClick) {
-                        console.log('🧹 Calling clearSelection() from canvas click');
                         this.clearSelection();
                     } else {
                     }
@@ -1292,7 +1271,9 @@ class MindMap {
     }
 
     updateGrid() {
-        const gridSize = 50 / this.zoomLevel;
+        // Much larger base grid size that responds better to zoom
+        const baseGridSize = 100;
+        const gridSize = baseGridSize / this.zoomLevel;
         const gridPattern = document.getElementById('grid');
         if (gridPattern) {
             gridPattern.setAttribute('width', gridSize);
@@ -1301,7 +1282,12 @@ class MindMap {
             const gridPath = gridPattern.querySelector('path');
             if (gridPath) {
                 gridPath.setAttribute('d', `M ${gridSize} 0 L 0 0 0 ${gridSize}`);
-                gridPath.setAttribute('stroke-width', Math.max(0.5, 0.5 / this.zoomLevel));
+                // Make grid lines more visible and responsive to zoom
+                const strokeWidth = Math.max(0.3, 1.0 / this.zoomLevel);
+                gridPath.setAttribute('stroke-width', strokeWidth);
+                // Adjust opacity based on zoom for better visibility
+                const opacity = Math.min(0.4, Math.max(0.1, 0.3 / this.zoomLevel));
+                gridPath.setAttribute('opacity', opacity);
             }
         }
     }
@@ -1555,7 +1541,6 @@ class MindMap {
         const worldX = this.viewBox.x + (clickX / rect.width) * this.viewBox.width;
         const worldY = this.viewBox.y + (clickY / rect.height) * this.viewBox.height;
         
-        console.log('Curve clicked at:', {worldX, worldY, connectionId});
         
         // Get connection endpoints to avoid placing control points too close to them
         const connection = this.connections.find(c => c.id === connectionId);
@@ -1598,7 +1583,6 @@ class MindMap {
         // Initialize control points if they don't exist
         let controlData = this.connectionControlPoints.get(connectionId);
         if (!controlData) {
-            console.log('Initializing control points for connection:', connectionId);
             this.initializeControlPointsForConnection(connectionId);
             controlData = this.connectionControlPoints.get(connectionId);
         }
@@ -1626,7 +1610,6 @@ class MindMap {
         
         if (!wasAlreadySelected) {
             // First click - just select the connection and show control points
-            console.log('First click - selecting connection and showing control points');
             controlData.visible = true;
             
             // Hide all other control points first
@@ -1638,7 +1621,6 @@ class MindMap {
             
         } else if (clickedPointIndex >= 0) {
             // Already selected + clicking on control point = delete it
-            console.log('Removing control point at index:', clickedPointIndex);
             
             // Visual feedback for deletion
             this.showTemporaryFeedback('Control point deleted', worldX, worldY, '#ff4444');
@@ -1648,7 +1630,6 @@ class MindMap {
             
         } else {
             // Already selected + clicking on empty area = add control point
-            console.log('Adding new control point at:', {worldX, worldY});
             
             // Visual feedback for addition
             this.showTemporaryFeedback('Control point added', worldX, worldY, '#44ff44');
@@ -1707,7 +1688,6 @@ class MindMap {
         };
         
         this.connectionControlPoints.set(connectionId, controlData);
-        console.log('Control points initialized:', controlData);
     }
 
     addControlPoint(connectionId, x, y) {
@@ -1724,7 +1704,6 @@ class MindMap {
         controlData.points.push({ id: newId, x: x, y: y });
         controlData.visible = true; // Ensure they're visible
         
-        console.log(`Added control point. Total: ${controlData.points.length}`, controlData.points);
         this.updateCurveTypeInfo(connectionId, controlData.points.length);
         
         // Smoothly update the connection curve
@@ -1829,7 +1808,6 @@ class MindMap {
             }, 150); // Show updated control points mid-animation
         }
         
-        console.log(`Removed control point. Total: ${controlData.points.length}`);
         this.updateCurveTypeInfo(connectionId, controlData.points.length);
     }
 
@@ -1906,7 +1884,6 @@ class MindMap {
             return;
         }
         
-        console.log('Showing control points for connection:', connectionId, controlData.points);
         
         // Remove any existing handles for this connection first
         document.querySelectorAll(`[data-connection-id="${connectionId}"]`).forEach(handle => {
@@ -1917,7 +1894,6 @@ class MindMap {
         
         // Create draggable handles for each control point
         controlData.points.forEach((point, index) => {
-            console.log(`Creating handle for point ${index + 1}:`, point);
             this.createControlPointHandle(
                 connectionId, 
                 point.id, 
@@ -1929,7 +1905,6 @@ class MindMap {
     }
 
     createControlPointHandle(connectionId, pointId, x, y, label) {
-        console.log('Parameters:', {connectionId, pointId, x, y, label});
         
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         handle.setAttribute('class', 'control-point-handle');
@@ -1991,7 +1966,6 @@ class MindMap {
         // Add to control layer (above everything else)
         try {
             this.controlLayer.appendChild(handle);
-            console.log('Handle in DOM:', document.contains(handle));
         } catch (error) {
             console.error('❌ Failed to add handle to control layer:', error);
         }
@@ -2005,12 +1979,10 @@ class MindMap {
         // TEMPORARY: Also add the handle to a global array for debugging
         if (!window.debugControlHandles) window.debugControlHandles = [];
         window.debugControlHandles.push(handle);
-        console.log('Total control handles created:', window.debugControlHandles.length);
     }
     
     // TEMPORARY: Add a simple function to test control point creation
     createTestControlPoint(x = 500, y = 300) {
-        console.log('Creating test control point at', x, y);
         
         const handle = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         handle.setAttribute('class', 'test-control-point');
@@ -2035,13 +2007,11 @@ class MindMap {
         handle.appendChild(text);
         this.controlLayer.appendChild(handle);
         
-        console.log('Test control point created and should be visible');
         return handle;
     }
 
     // TEMPORARY: Test function to create a connection for testing clicks
     createTestConnection() {
-        console.log('Creating test connection for click testing');
         
         // Create two test nodes if they don't exist
         let node1 = this.nodes.find(n => n.text === 'Test1');
@@ -2081,13 +2051,10 @@ class MindMap {
         this.connections.push(connection);
         this.renderConnections();
         
-        console.log('Test connection created between Test1 and Test2');
-        console.log('Try clicking on the connection line!');
     }
 
     // TEMPORARY: Test function to create multiple connections for comprehensive testing
     createTestConnections() {
-        console.log('🧪 Creating test connections for comprehensive testing...');
         
         // Create test nodes if they don't exist
         const testNodes = [
@@ -2129,16 +2096,7 @@ class MindMap {
                     this.connectionManager.createConnection(nodeC, nodeD);
                     this.connectionManager.createConnection(nodeD, nodeA);
                     
-                    console.log('🔥 INTERPOLATION POINTS (NEW):');
-                    console.log('  • Click connection lines to add interpolation points');
-                    console.log('  • Drag GREEN points to sculpt smooth curves');
-                    console.log('  • Double-click or right-click GREEN points to delete them');
-                    console.log('  • Shift+Click connections to toggle interpolation point visibility');
-                    console.log('  • Add multiple points for complex curve shapes');
                     console.log('');
-                    console.log('  • Ctrl+Click connections to delete entire connection');
-                    console.log('  • Each connection can have unlimited interpolation points');
-                    console.log('  • Curves use smooth Catmull-Rom spline interpolation');
                 } else {
                     console.warn('⚠️ Some test nodes not found');
                 }
@@ -2436,14 +2394,10 @@ class MindMap {
         // Show feedback
         this.showTemporaryFeedback('Connection made straight', 0, 0, '#44ff44');
         
-        console.log('Connection made straight:', connectionId);
         this.updateCurveTypeInfo(connectionId, 0);
     }
 
     handleSimpleControlPointClick(event, connectionId) {
-        console.log('=== CONTROL POINT CLICK START ===');
-        console.log('Connection ID:', connectionId);
-        console.log('Event:', event);
         
         try {
             // Get click position
@@ -2451,20 +2405,15 @@ class MindMap {
             const clickX = event.clientX - rect.left;
             const clickY = event.clientY - rect.top;
             
-            console.log('Canvas rect:', rect);
-            console.log('Click position (canvas):', {clickX, clickY});
-            console.log('ViewBox:', this.viewBox);
             
             // Simple coordinate conversion - no viewBox scaling for now
             const worldX = clickX;
             const worldY = clickY;
             
-            console.log('World coordinates:', {worldX, worldY});
             
             // Get or create control data
             let controlData = this.connectionControlPoints.get(connectionId);
             if (!controlData) {
-                console.log('No control data found, initializing...');
                 // Initialize simple control data
                 controlData = {
                     points: [],
@@ -2474,7 +2423,6 @@ class MindMap {
                 console.log('Initialized control data:', controlData);
             }
             
-            console.log('Current control points:', controlData.points);
             
             // Check if clicking near existing control point to remove it
             let clickedPointIndex = -1;
@@ -2483,50 +2431,39 @@ class MindMap {
                 const distance = Math.sqrt(
                     Math.pow(worldX - cp.x, 2) + Math.pow(worldY - cp.y, 2)
                 );
-                console.log(`Distance to control point ${i}:`, distance, 'Point at:', cp);
                 if (distance < 50) { // Very generous detection area
                     clickedPointIndex = i;
-                    console.log('Found nearby control point to delete:', i);
                     break;
                 }
             }
             
             if (clickedPointIndex >= 0) {
                 // Remove control point
-                console.log('REMOVING control point at index:', clickedPointIndex);
                 const removedPoint = controlData.points.splice(clickedPointIndex, 1)[0];
-                console.log('Removed point:', removedPoint);
-                console.log('Remaining points:', controlData.points);
                 
                 // Show feedback
                 this.showTemporaryFeedback('Control point deleted', worldX, worldY, '#ff4444');
                 
             } else {
                 // Add new control point
-                console.log('ADDING new control point at:', {worldX, worldY});
                 
                 // Generate simple ID
                 const newId = `cp_${Date.now()}`;
                 const newPoint = { id: newId, x: worldX, y: worldY };
                 
                 controlData.points.push(newPoint);
-                console.log('Added point:', newPoint);
-                console.log('Total points now:', controlData.points.length);
                 
                 // Show feedback
                 this.showTemporaryFeedback('Control point added', worldX, worldY, '#44ff44');
             }
             
             // Always re-render
-            console.log('Re-rendering connections...');
             this.renderConnections();
             
             // Show control points
             if (controlData.points.length > 0) {
-                console.log('Showing control points...');
                 this.showControlPoints(connectionId);
             } else {
-                console.log('No control points to show, hiding all...');
                 this.hideAllControlPoints();
             }
             
@@ -2535,7 +2472,6 @@ class MindMap {
             console.error('Stack trace:', error.stack);
         }
         
-        console.log('=== CONTROL POINT CLICK END ===');
     }
 
     handleControlPointClick(event, connectionId) {
@@ -2769,12 +2705,9 @@ class MindMap {
     }
 
     startDragConnection(node, event, startX = null, startY = null) {
-        console.log('startDragConnection called', {node, startX, startY});
-        console.log('dragConnectionLine element:', this.dragConnectionLine);
         this.isDraggingConnection = true;
         this.dragConnectionStart = node;
         this.dragConnectionLine.style.display = 'block';
-        console.log('Set dragConnectionLine display to block');
         
         // Highlight the start node
         this.highlightNode(node, 'connecting');
@@ -2844,12 +2777,10 @@ class MindMap {
     }
 
     finishDragConnection(event) {
-        console.log('finishDragConnection called', {isDraggingConnection: this.isDraggingConnection, dragConnectionStart: this.dragConnectionStart});
         if (!this.isDraggingConnection || !this.dragConnectionStart) return;
         
         // Check if we're over a node
         const targetNode = this.getNodeUnderMouse(event);
-        console.log('Target node:', targetNode);
         
         if (targetNode && targetNode.id !== this.dragConnectionStart.id) {
             // Create connection to existing node immediately
@@ -2857,7 +2788,6 @@ class MindMap {
             this.cleanupDragConnection();
         } else {
             // Over empty space - create a temporary connection that persists
-            console.log('Dropped on empty space, creating persistent connection');
             const rect = this.canvas.getBoundingClientRect();
             const mouseX = event.clientX - rect.left;
             const mouseY = event.clientY - rect.top;
@@ -2895,7 +2825,6 @@ class MindMap {
             
             // Re-render all connections (this will include our temporary one)
             this.renderConnections();
-            console.log('Created temporary connection and re-rendered');
             
             // Show the add-node indicator
             const indicator = document.getElementById('add-node-indicator');
@@ -2915,13 +2844,11 @@ class MindMap {
     }
 
     updateDragConnectionToPosition(endX, endY) {
-        console.log('updateDragConnectionToPosition called', {endX, endY, dragConnectionStart: this.dragConnectionStart});
         if (!this.dragConnectionStart) return;
         
         // Use the stored start point (click location on edge)
         const startX = this.dragConnectionStartPoint.x;
         const startY = this.dragConnectionStartPoint.y;
-        console.log('Start point:', {startX, startY});
         
         // Create a temporary target "node" at the end position for consistent curve calculation
         const endNode = { x: endX, y: endY };
@@ -2929,7 +2856,6 @@ class MindMap {
         // Use the original Coggle-style path generation
         const pathData = this.createCoggleConnectionPath(startX, startY, endX, endY, this.dragConnectionStart, endNode);
         this.dragConnectionLine.setAttribute('d', pathData);
-        console.log('Updated dragConnectionLine d attribute');
     }
 
     setupPendingConnectionHandlers() {
@@ -2963,10 +2889,8 @@ class MindMap {
                 
                 // Only cancel if click is more than 100 pixels from the endpoint
                 if (distanceToEnd > 100) {
-                    console.log('Clicking far from connection, canceling', {distance: distanceToEnd});
                     this.cancelPendingConnection();
                 } else {
-                    console.log('Click near connection, keeping it active', {distance: distanceToEnd});
                 }
             }
         };
@@ -2979,10 +2903,8 @@ class MindMap {
         };
         
         // Add a small delay before enabling the click handler to prevent immediate cancellation
-        console.log('Setting up pending connection handlers with delay');
         setTimeout(() => {
             document.addEventListener('click', this.addNodeClickHandler);
-            console.log('Click handler activated after delay');
         }, 100); // 100ms delay
         
         document.addEventListener('keydown', this.escapeHandler);
@@ -3095,11 +3017,6 @@ class MindMap {
         const rectBounds = this.getSelectionRectangleBounds();
         const selectedNodes = this.getNodesInRectangle(rectBounds);
         
-        console.log('🔲 Rectangle selection finished:', {
-            bounds: rectBounds,
-            nodesFound: selectedNodes.length,
-            nodeIds: selectedNodes.map(n => n.id)
-        });
         
         if (!this.isConnectMode && this.nodeManager) {
             // Clear current selection
@@ -3116,7 +3033,6 @@ class MindMap {
                 this.nodeManager.selectedNode = selectedNodes[0];
             }
             
-            console.log('🔲 Selected', selectedNodes.length, 'nodes via rectangle selection');
         }
         
         this.selectionRectangle.style.display = 'none';
@@ -3158,12 +3074,6 @@ class MindMap {
                               nodeBottom < rectBounds.y);
             
             if (overlaps) {
-                console.log('🔲 Node in rectangle:', {
-                    nodeId: node.id,
-                    nodePos: { x: node.x, y: node.y },
-                    nodeBounds: { left: nodeLeft, right: nodeRight, top: nodeTop, bottom: nodeBottom },
-                    rectBounds: rectBounds
-                });
             }
             
             return overlaps;
@@ -3172,7 +3082,6 @@ class MindMap {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('📄 DOM Content Loaded - Starting MindMap initialization');
     const mindMap = new MindMap();
 
     // Test connections removed to avoid duplicate nodes

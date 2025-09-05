@@ -228,11 +228,9 @@ class PanelManager {
             
             // Prevent unwanted closing if panel was just opened (within 5 seconds for more protection)
             if (timeSinceOpen < 5000 && this.currentEditingNode) {
-                console.trace('Blocked close stack trace:');
                 return;
             }
         }
-        console.trace('Call stack for panel close:');
         this.hide();
         this.currentEditingNode = null;
     }
@@ -241,7 +239,6 @@ class PanelManager {
      * Force close panel (bypasses timing protection)
      */
     forceClose() {
-        console.log('🔥 PanelManager.forceClose() called - bypassing protection');
         this.hide();
         this.currentEditingNode = null;
     }
@@ -261,15 +258,11 @@ class PanelManager {
      * Hide panel with animation
      */
     hide() {
-        console.log('🙈 PanelManager.hide() called');
-        console.trace('Hide panel stack trace:');
-        
         this.panel.style.opacity = '0';
         this.panel.style.transform = 'translateX(100%)';
         
         setTimeout(() => {
             this.panel.style.display = 'none';
-            console.log('🙈 Panel display set to none after animation');
         }, this.config.panelAnimationDuration);
     }
     

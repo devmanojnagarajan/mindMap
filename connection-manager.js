@@ -280,16 +280,6 @@ class ConnectionManager {
             toNode = this.mindMap.nodeManager.nodes.get(connection.to);
         }
         
-        console.log('👀 Looking for nodes:', {
-            connectionId: connectionId,
-            fromId: connection.from,
-            toId: connection.to,
-            fromNodeFound: !!fromNode,
-            toNodeFound: !!toNode,
-            mindMapNodesCount: this.mindMap.nodes?.length || 0,
-            nodeManagerNodesCount: this.mindMap.nodeManager?.nodes?.size || 0
-        });
-        
         if (!fromNode || !toNode) {
             console.warn('⚠️ Could not find nodes for connection:', {
                 connectionId,
@@ -306,12 +296,6 @@ class ConnectionManager {
         
         // Calculate path
         const pathData = this.createConnectionPath(fromNode, toNode, connectionId);
-        console.log('📏 Connection path created:', {
-            connectionId: connectionId,
-            pathData: pathData,
-            fromPos: { x: fromNode.x, y: fromNode.y },
-            toPos: { x: toNode.x, y: toNode.y }
-        });
         
         // Create elements
         this.createConnectionElements(connectionId, pathData, connection);
@@ -568,8 +552,6 @@ class ConnectionManager {
             y: y
         };
         
-        console.log('➕ Creating new control point:', newPoint);
-        
         // Store in both places for compatibility
         controlData.points.push(newPoint);
         connection.controlPoints.push(newPoint);
@@ -594,7 +576,6 @@ class ConnectionManager {
         controlData.visible = true;
         
         controlData.points.forEach((point, index) => {
-            console.log(`➕ Creating handle ${index} at (${point.x}, ${point.y})`);
             this.createControlPointHandle(connectionId, point, index);
         });
         
