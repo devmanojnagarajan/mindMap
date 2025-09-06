@@ -147,6 +147,11 @@ class ConnectionManager {
             return existingId;
         }
         
+        // Save state before making changes
+        if (this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveState('connection', `Connected ${fromNode.text || fromNode.id} to ${toNode.text || toNode.id}`);
+        }
+        
         const connectionId = this.generateId('conn');
         const connection = {
             id: connectionId,
@@ -232,6 +237,13 @@ class ConnectionManager {
     
     deleteConnection(connectionId) {
         if (!this.connections.has(connectionId)) return false;
+        
+        const connection = this.connections.get(connectionId);
+        
+        // Save state before making changes
+        if (this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveState('connection', `Deleted connection ${connection.from} to ${connection.to}`);
+        }
         
         // Remove visual elements
         this.removeConnectionElements(connectionId);

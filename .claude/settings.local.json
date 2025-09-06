@@ -7,7 +7,8 @@
       "Bash(npm install)",
       "Bash(start:*)",
       "Bash(git restore:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

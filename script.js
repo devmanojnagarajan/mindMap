@@ -16,6 +16,7 @@ class MindMap {
                 this.nodeManager = new NodeManager(this);
                 this.connectionManager = new ConnectionManager(this);
                 this.panelManager = new PanelManager(this);
+                this.historyManager = new HistoryManager(this, { debug: false });
                 
                 // Clear any stuck selections from fallback rendering
                 this.clearSelection();
@@ -136,6 +137,8 @@ class MindMap {
         document.getElementById('save-map').addEventListener('click', () => this.saveMap());
         document.getElementById('load-map').addEventListener('click', () => this.loadMap());
         document.getElementById('delete-map').addEventListener('click', () => this.deleteMap());
+        document.getElementById('undo-btn').addEventListener('click', () => this.undo());
+        document.getElementById('redo-btn').addEventListener('click', () => this.redo());
         
         window.addEventListener('resize', () => this.updateCanvasSize());
         
@@ -169,6 +172,12 @@ class MindMap {
             } else if (e.ctrlKey && e.key === 'v') {
                 e.preventDefault();
                 this.pasteNodes();
+            } else if (e.ctrlKey && e.key === 'z') {
+                e.preventDefault();
+                this.undo();
+            } else if (e.ctrlKey && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+                e.preventDefault();
+                this.redo();
             } else if (e.key === 't' || e.key === 'T') {
                 // TEMPORARY: Press 'T' to create a test control point
                 this.createTestControlPoint();
@@ -1187,6 +1196,32 @@ class MindMap {
         this.selectedNodes.clear();
         this.canvas.innerHTML = this.canvas.querySelector('defs').outerHTML;
         this.initializeLayers();
+    }
+
+    undo() {
+        if (this.historyManager) {
+            const success = this.historyManager.undo();
+            if (success) {
+                notie.alert({ type: 'success', text: 'Undo successful', time: 2 });
+            } else {
+                notie.alert({ type: 'info', text: 'Nothing to undo', time: 2 });
+            }
+        } else {
+            console.warn('History manager not initialized');
+        }
+    }
+
+    redo() {
+        if (this.historyManager) {
+            const success = this.historyManager.redo();
+            if (success) {
+                notie.alert({ type: 'success', text: 'Redo successful', time: 2 });
+            } else {
+                notie.alert({ type: 'info', text: 'Nothing to redo', time: 2 });
+            }
+        } else {
+            console.warn('History manager not initialized');
+        }
     }
 
     renderAll() {

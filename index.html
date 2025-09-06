@@ -231,6 +231,14 @@
               </button>
             </div>
             <div class="control-group">
+              <button id="undo-btn" data-tippy-content="Undo (Ctrl+Z)" disabled>
+                <i class="ri-arrow-go-back-line"></i>
+              </button>
+              <button id="redo-btn" data-tippy-content="Redo (Ctrl+Y)" disabled>
+                <i class="ri-arrow-go-forward-line"></i>
+              </button>
+            </div>
+            <div class="control-group">
               <button id="delete-map" data-tippy-content="Delete Map">
                 <i class="ri-delete-bin-line"></i>
               </button>
@@ -492,6 +500,7 @@
     <script src="core/config-manager.js?v=15"></script>
     <script src="core/error-handler.js?v=15"></script>
     <script src="core/base-manager.js?v=15"></script>
+    <script src="core/history-manager.js?v=15"></script>
 
     <!-- Application modules -->
     <script src="node-manager.js?v=15"></script>

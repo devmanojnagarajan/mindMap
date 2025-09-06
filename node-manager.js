@@ -133,6 +133,11 @@ class NodeManager {
      * Add node with automatic positioning and connection logic
      */
     addNode(x = null, y = null, text = 'New Node') {
+        // Save state before making changes
+        if (this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveState('node', `Added node: ${text}`);
+        }
+        
         // Determine position if not specified
         if (x === null || y === null) {
             if (this.selectedNode) {
@@ -315,6 +320,11 @@ class NodeManager {
         const node = this.nodes.get(nodeId);
         if (!node) return false;
         
+        // Save state before making changes
+        if (this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveState('node', `Deleted node: ${node.text}`);
+        }
+        
         // Remove from visual layer
         const nodeElement = this.nodeLayer.querySelector(`[data-node-id="${nodeId}"]`);
         if (nodeElement) {
@@ -376,6 +386,11 @@ class NodeManager {
     updateNode(nodeId, updates) {
         const node = this.nodes.get(nodeId);
         if (!node) return false;
+        
+        // Save state before making changes for text updates
+        if (updates.text && this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveStateDebounced('node', `Updated node: ${updates.text}`);
+        }
         
         // Apply updates
         Object.assign(node, updates);
@@ -1324,6 +1339,10 @@ class NodeManager {
             this.mindMap.connectionManager.renderAllConnections();
         }
         
+        // Save state after drag operation
+        if (this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveState('node', `Moved node: ${node.text || node.id}`);
+        }
     }
 
     /**
@@ -1623,13 +1642,47 @@ class NodeManager {
     deleteSelectedNodes() {
         const nodeIds = [...this.selectedNodes];
         
+        // Save state before bulk deletion
+        if (nodeIds.length > 0 && this.mindMap.historyManager) {
+            this.mindMap.historyManager.saveState('bulk', `Deleted ${nodeIds.length} nodes`);
+        }
+        
         nodeIds.forEach(nodeId => {
-            this.deleteNode(nodeId);
+            const node = this.nodes.get(nodeId);
+            if (!node) return;
+            
+            // Remove from visual layer without saving state for each individual deletion
+            const nodeElement = this.nodeLayer.querySelector(`[data-node-id="${nodeId}"]`);
+            if (nodeElement) {
+                nodeElement.style.transition = 'all 0.3s ease-out';
+                nodeElement.style.transform = nodeElement.getAttribute('transform') + ' scale(0)';
+                nodeElement.style.opacity = '0';
+                
+                setTimeout(() => {
+                    if (nodeElement.parentNode) {
+                        nodeElement.remove();
+                    }
+                }, 300);
+            }
+            
+            // Remove from data structures
+            this.nodes.delete(nodeId);
+            this.selectedNodes.delete(nodeId);
+            
+            // Remove from mindMap array
+            const index = this.mindMap.nodes.findIndex(n => n.id === nodeId);
+            if (index !== -1) {
+                this.mindMap.nodes.splice(index, 1);
+            }
+            
+            // Delete related connections
+            if (this.mindMap.connectionManager) {
+                this.deleteNodeConnections(nodeId);
+            }
         });
         
         this.selectedNodes.clear();
         this.selectedNode = null;
-        
     }
 
     /**
@@ -1815,6 +1868,22 @@ class NodeManager {
      */
     getAllNodes() {
         return [...this.nodes.values()];
+    }
+
+    /**
+     * Clear all nodes (for history restoration)
+     */
+    clearAllNodes() {
+        // Clear visual elements
+        this.nodeLayer.innerHTML = '';
+        
+        // Clear data structures
+        this.nodes.clear();
+        this.selectedNodes.clear();
+        this.selectedNode = null;
+        
+        // Clear mindMap array
+        this.mindMap.nodes = [];
     }
 
     /**
