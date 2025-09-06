@@ -32,7 +32,7 @@ class ConfigManager {
                 maxZoom: 5.0,
                 zoomStep: 0.1,
                 panSpeed: 1.0,
-                gridSize: 50,
+                gridSize: 25,
                 gridVisible: true
             },
             
