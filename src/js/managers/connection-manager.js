@@ -153,9 +153,8 @@ class ConnectionManager {
         }
         
         const connectionId = this.generateId('conn');
-        // Use fallback color if gradient is not available yet
-        const gradientElement = document.getElementById('connectionGradient');
-        const strokeColor = gradientElement ? 'url(#connectionGradient)' : '#6B7280';
+        // Use attractive gray color for connections
+        const strokeColor = '#6B7280';
         
         const connection = {
             id: connectionId,
@@ -277,24 +276,15 @@ class ConnectionManager {
     
     // Connection Rendering
     renderConnection(connectionId) {
-        console.log(`🔗 === RENDERING CONNECTION: ${connectionId} ===`);
         const connection = this.connections.get(connectionId);
         if (!connection) {
             console.warn('⚠️ Cannot render connection - not found:', connectionId);
             return;
         }
         
-        console.log('📋 Connection data:', connection);
-        
         // Check both old nodes array and new nodeManager structure
         let fromNode = this.mindMap.nodes.find(n => n.id === connection.from);
         let toNode = this.mindMap.nodes.find(n => n.id === connection.to);
-        
-        console.log('🔍 Node lookup (old array):', {
-            fromNodeFound: !!fromNode,
-            toNodeFound: !!toNode,
-            totalNodesInArray: this.mindMap.nodes.length
-        });
         
         // Fallback to nodeManager if available
         if (!fromNode && this.mindMap.nodeManager) {
@@ -303,13 +293,6 @@ class ConnectionManager {
         if (!toNode && this.mindMap.nodeManager) {
             toNode = this.mindMap.nodeManager.nodes.get(connection.to);
         }
-        
-        console.log('🔍 Node lookup (after nodeManager fallback):', {
-            fromNodeFound: !!fromNode,
-            toNodeFound: !!toNode,
-            nodeManagerExists: !!this.mindMap.nodeManager,
-            nodeManagerSize: this.mindMap.nodeManager ? this.mindMap.nodeManager.nodes.size : 0
-        });
         
         if (!fromNode || !toNode) {
             console.warn('❌ Could not find nodes for connection:', {
@@ -322,24 +305,14 @@ class ConnectionManager {
             return;
         }
         
-        console.log('✅ Found both nodes:', {
-            fromNode: { id: fromNode.id, x: fromNode.x, y: fromNode.y },
-            toNode: { id: toNode.id, x: toNode.x, y: toNode.y }
-        });
-        
         // Remove existing elements
-        console.log('🧹 Removing existing elements for connection:', connectionId);
         this.removeConnectionElements(connectionId);
         
         // Calculate path
-        console.log('📐 Calculating path...');
         const pathData = this.createConnectionPath(fromNode, toNode, connectionId);
-        console.log('📐 Path data generated:', pathData);
         
         // Create elements
-        console.log('🎨 Creating SVG elements...');
         this.createConnectionElements(connectionId, pathData, connection);
-        console.log(`🔗 === CONNECTION RENDERING COMPLETE: ${connectionId} ===`);
     }
     
     createConnectionPath(fromNode, toNode, connectionId) {
@@ -359,27 +332,18 @@ class ConnectionManager {
         const dy = toNode.y - fromNode.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        console.log('📐 Calculating connection points:', {
-            from: { x: fromNode.x, y: fromNode.y },
-            to: { x: toNode.x, y: toNode.y },
-            distance
-        });
-        
         if (distance === 0) return { startX: fromNode.x, startY: fromNode.y, endX: toNode.x, endY: toNode.y };
         
         const unitX = dx / distance;
         const unitY = dy / distance;
         const radius = 40; // Node radius
         
-        const result = {
+        return {
             startX: fromNode.x + unitX * radius,
             startY: fromNode.y + unitY * radius,
             endX: toNode.x - unitX * radius,
             endY: toNode.y - unitY * radius
         };
-        
-        console.log('📐 Connection points result:', result);
-        return result;
     }
     
     createCurvedPath(startX, startY, endX, endY, controlPoints) {
@@ -397,22 +361,8 @@ class ConnectionManager {
     createConnectionElements(connectionId, pathData, connection) {
         const isSelected = this.selectedConnection === connectionId;
         
-        // Debug logging
-        console.log('🔗 Creating connection elements:', {
-            connectionId,
-            pathData,
-            isSelected
-        });
-        
-        // Use fallback colors if gradients are not available
-        const gradientElement = document.getElementById('connectionGradient');
-        const defaultStroke = gradientElement ? 'url(#connectionGradient)' : '#FF0000'; // Red for debugging
-        
-        console.log('🎨 Stroke info:', {
-            gradientElement: !!gradientElement,
-            defaultStroke,
-            selectedStroke: isSelected ? '#38BDF8' : defaultStroke
-        });
+        // Use attractive gray color for connections
+        const defaultStroke = '#6B7280';
         
         // Main path
         const path = this.createSVGElement('path', {
@@ -422,7 +372,7 @@ class ConnectionManager {
             fill: 'none',
             'marker-end': isSelected ? 'url(#arrowhead-selected)' : 'url(#arrowhead)',
             stroke: isSelected ? '#38BDF8' : defaultStroke,
-            'stroke-width': isSelected ? '6' : '5', // Make thicker for debugging
+            'stroke-width': isSelected ? '4' : '3',
             opacity: '1' // Explicit opacity
         });
         
@@ -463,32 +413,8 @@ class ConnectionManager {
         });
         
         // Add to DOM
-        console.log('📍 Adding elements to DOM...');
-        console.log('🎯 Connection layer before append:', this.connectionLayer.children.length, 'children');
-        
         this.connectionLayer.appendChild(path);
-        console.log('✅ Path element added. Children count:', this.connectionLayer.children.length);
-        
         this.connectionLayer.appendChild(overlay);
-        console.log('✅ Overlay element added. Children count:', this.connectionLayer.children.length);
-        
-        // Verify the elements are actually in the DOM
-        const pathInDOM = this.connectionLayer.querySelector(`[data-connection-id="${connectionId}"].connection-line`);
-        const overlayInDOM = this.connectionLayer.querySelector(`[data-connection-id="${connectionId}"].connection-overlay`);
-        console.log('🔍 Elements verification in DOM:', {
-            pathExists: !!pathInDOM,
-            overlayExists: !!overlayInDOM,
-            pathStroke: pathInDOM ? pathInDOM.getAttribute('stroke') : 'N/A',
-            pathStrokeWidth: pathInDOM ? pathInDOM.getAttribute('stroke-width') : 'N/A',
-            pathD: pathInDOM ? pathInDOM.getAttribute('d') : 'N/A'
-        });
-        
-        if (!pathInDOM) {
-            console.error('❌ PATH ELEMENT NOT FOUND IN DOM for connection:', connectionId);
-        }
-        if (!overlayInDOM) {
-            console.error('❌ OVERLAY ELEMENT NOT FOUND IN DOM for connection:', connectionId);
-        }
     }
     
     handleConnectionClick(event, connectionId) {
@@ -901,8 +827,7 @@ class ConnectionManager {
         
         // Clear main path highlights for ALL connections  
         const allPaths = this.connectionLayer.querySelectorAll('.connection-line');
-        const gradientElement = document.getElementById('connectionGradient');
-        const defaultStroke = gradientElement ? 'url(#connectionGradient)' : '#6B7280';
+        const defaultStroke = '#6B7280';
         
         allPaths.forEach(path => {
             path.setAttribute('stroke', defaultStroke);
@@ -933,48 +858,14 @@ class ConnectionManager {
     }
     
     renderAllConnections() {
-        console.log('🚀 === RENDERING ALL CONNECTIONS START ===');
-        console.log('🔢 Total connections to render:', this.connections.size);
-        console.log('🎯 Connection layer:', this.connectionLayer);
-        
         this.connectionLayer.innerHTML = '';
         
         // Force no selection during initial render
         this.selectedConnection = null;
         
-        let renderCount = 0;
         for (const connectionId of this.connections.keys()) {
-            renderCount++;
-            console.log(`🔗 Rendering connection ${renderCount}/${this.connections.size}: ${connectionId}`);
             this.renderConnection(connectionId);
         }
-        
-        // Check what actually got added to the DOM
-        const renderedElements = this.connectionLayer.children.length;
-        console.log('✅ DOM elements added to connection layer:', renderedElements);
-        
-        // List all rendered connection IDs
-        const renderedConnections = [];
-        const allPaths = this.connectionLayer.querySelectorAll('.connection-line');
-        allPaths.forEach(path => {
-            const id = path.getAttribute('data-connection-id');
-            renderedConnections.push(id);
-            console.log('🔗 Successfully rendered connection:', id);
-        });
-        
-        // Check which connections are missing
-        const allConnectionIds = Array.from(this.connections.keys());
-        const missingConnections = allConnectionIds.filter(id => !renderedConnections.includes(id));
-        console.log('❌ Missing connections:', missingConnections);
-        
-        console.log('📊 Summary:', {
-            total: allConnectionIds.length,
-            rendered: renderedConnections.length,
-            missing: missingConnections.length
-        });
-        
-        console.log('🎨 Connection layer HTML:', this.connectionLayer.innerHTML.substring(0, 500) + '...');
-        console.log('🚀 === RENDERING ALL CONNECTIONS END ===');
         
         // Don't auto-restore any selection - let user manually select
     }

@@ -76,12 +76,12 @@ class MindMap {
         // Re-create essential UI elements that might have been removed
         this.createEssentialUIElements();
         
-        // Create connection layer (should be behind nodes)
+        // Create connection layer first (behind nodes)
         this.connectionLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.connectionLayer.setAttribute('id', 'connection-layer');
         this.canvas.appendChild(this.connectionLayer);
         
-        // Create node layer (should be above connections)
+        // Create node layer second (above connections)
         this.nodeLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
         this.nodeLayer.setAttribute('id', 'node-layer');
         this.canvas.appendChild(this.nodeLayer);

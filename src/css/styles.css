@@ -10,7 +10,7 @@
     --node-stroke: #4B5563;
     --node-selected-bg: #F59E0B;
     --node-selected-stroke: #D97706;
-    --connection-stroke: url(#connectionGradient);
+    --connection-stroke: #6B7280;
     --font-family: 'Poppins', sans-serif;
     --success-color: #10B981;
     --error-color: #F43F5E;
