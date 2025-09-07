@@ -1,16 +1,54 @@
 {
   "name": "coggle-clone",
   "version": "1.0.0",
-  "description": "A mind mapping tool similar to Coggle",
+  "description": "A powerful, interactive mind mapping application with collaborative features, undo/redo functionality, and real-time visualization.",
   "main": "index.html",
   "scripts": {
     "start": "http-server . -p 3000",
-    "dev": "http-server . -p 3000 -o"
+    "dev": "http-server . -p 3000 -o -c-1",
+    "build": "echo 'No build step required for vanilla JavaScript project'",
+    "test": "echo 'No tests specified yet'",
+    "lint": "echo 'Add ESLint configuration for linting'",
+    "format": "echo 'Add Prettier configuration for formatting'",
+    "serve:prod": "http-server . -p 8080",
+    "clean": "echo 'Cleaning temporary files...' && rm -rf .DS_Store **/.DS_Store"
   },
-  "keywords": ["mind-map", "coggle", "diagram", "visualization"],
-  "author": "",
+  "keywords": [
+    "mind-map",
+    "mindmap", 
+    "coggle",
+    "diagram",
+    "visualization",
+    "collaborative",
+    "undo-redo",
+    "svg",
+    "vanilla-js",
+    "interactive",
+    "drag-drop"
+  ],
+  "author": {
+    "name": "Mind Map Developer"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/coggle-clone.git"
+  },
+  "homepage": "https://github.com/username/coggle-clone#readme",
+  "bugs": {
+    "url": "https://github.com/username/coggle-clone/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
   "devDependencies": {
     "http-server": "^14.1.1"
-  }
+  },
+  "dependencies": {},
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead"
+  ]
 }

@@ -1,0 +1,47 @@
+{
+  "env": {
+    "browser": true,
+    "es2021": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2021,
+    "sourceType": "module"
+  },
+  "rules": {
+    "indent": ["error", 4],
+    "linebreak-style": ["error", "unix"],
+    "quotes": ["error", "single"],
+    "semi": ["error", "always"],
+    "no-console": "warn",
+    "no-unused-vars": "warn",
+    "prefer-const": "error",
+    "no-var": "error",
+    "eqeqeq": "error",
+    "curly": "error",
+    "brace-style": ["error", "1tbs"],
+    "comma-dangle": ["error", "never"],
+    "object-curly-spacing": ["error", "always"],
+    "array-bracket-spacing": ["error", "never"],
+    "keyword-spacing": "error",
+    "space-before-blocks": "error",
+    "space-infix-ops": "error",
+    "no-trailing-spaces": "error",
+    "eol-last": "error",
+    "max-len": ["warn", { "code": 120 }],
+    "camelcase": "warn",
+    "consistent-return": "warn",
+    "default-case": "warn",
+    "no-magic-numbers": ["warn", { "ignore": [0, 1, -1] }],
+    "prefer-arrow-callback": "warn",
+    "arrow-spacing": "error",
+    "no-duplicate-imports": "error"
+  },
+  "globals": {
+    "tippy": "readonly",
+    "notie": "readonly"
+  }
+}
