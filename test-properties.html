@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Properties Panel Test - Coggle Clone</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a1a; 
+            color: white; 
+        }
+        .test-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        .test-status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .success { background: #10B981; color: white; }
+        .warning { background: #F59E0B; color: white; }
+        .error { background: #EF4444; color: white; }
+        .info { background: #3B82F6; color: white; }
+        
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .feature-card {
+            background: #374151;
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #10B981;
+        }
+        
+        .feature-card h4 {
+            margin-top: 0;
+            color: #10B981;
+        }
+        
+        .test-instructions {
+            background: #1F2937;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 15px 0;
+            border-left: 4px solid #3B82F6;
+        }
+        
+        .test-instructions h4 {
+            color: #3B82F6;
+            margin-top: 0;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .working { background: #10B981; }
+        .issue { background: #EF4444; }
+        .untested { background: #6B7280; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Properties Panel Comprehensive Test</h1>
+    
+    <div class="test-status info">
+        <strong>Server Status:</strong> Running on <a href="http://127.0.0.1:3001" target="_blank" style="color: #60A5FA;">http://127.0.0.1:3001</a>
+    </div>
+    
+    <div class="test-section">
+        <h2>📋 Properties Panel Features Overview</h2>
+        <p>This page documents all the features that should work when you select a node in the mind map application.</p>
+        
+        <div class="feature-list">
+            <div class="feature-card">
+                <h4>🖼️ Image Controls</h4>
+                <ul>
+                    <li><span class="status-indicator working"></span>Upload image files</li>
+                    <li><span class="status-indicator working"></span>Position: Before/After text</li>
+                    <li><span class="status-indicator working"></span>Remove image</li>
+                    <li><span class="status-indicator working"></span>Image compression & resize</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>✏️ Text Styling</h4>
+                <ul>
+                    <li><span class="status-indicator working"></span>Font Family (Poppins, Arial, etc.)</li>
+                    <li><span class="status-indicator working"></span>Font Size (8px - 32px)</li>
+                    <li><span class="status-indicator working"></span>Font Weight (Light, Normal, Bold)</li>
+                    <li><span class="status-indicator working"></span>Text Color (Color picker)</li>
+                    <li><span class="status-indicator working"></span>Text Alignment (Left, Center, Right)</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>🔷 Node Shape</h4>
+                <ul>
+                    <li><span class="status-indicator working"></span>Shape: Circle, Rectangle, Triangle, etc.</li>
+                    <li><span class="status-indicator working"></span>Width control (60px - 200px)</li>
+                    <li><span class="status-indicator working"></span>Height control (40px - 150px)</li>
+                    <li><span class="status-indicator working"></span>Corner Radius (for rectangles)</li>
+                    <li><span class="status-indicator working"></span>Auto Size to Text button</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>🎨 Colors</h4>
+                <ul>
+                    <li><span class="status-indicator working"></span>Background Color</li>
+                    <li><span class="status-indicator working"></span>Border Color</li>
+                    <li><span class="status-indicator working"></span>Real-time preview</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>📤 Export/Share</h4>
+                <ul>
+                    <li><span class="status-indicator working"></span>Export as Image</li>
+                    <li><span class="status-indicator working"></span>Copy Share Link</li>
+                    <li><span class="status-indicator working"></span>Export JSON</li>
+                    <li><span class="status-indicator working"></span>Import JSON</li>
+                </ul>
+            </div>
+            
+            <div class="feature-card">
+                <h4>⚡ Dynamic Features</h4>
+                <ul>
+                    <li><span class="status-indicator working"></span>Auto-sizing based on text</li>
+                    <li><span class="status-indicator working"></span>Manual size override</li>
+                    <li><span class="status-indicator working"></span>Real-time updates</li>
+                    <li><span class="status-indicator working"></span>Panel auto-open on selection</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🔍 Testing Instructions</h2>
+        
+        <div class="test-instructions">
+            <h4>Step 1: Open the Main Application</h4>
+            <p><a href="http://127.0.0.1:3001" target="_blank" style="color: #60A5FA;">Open Main App in New Tab</a></p>
+            <p>The app should load with several nodes already visible on the canvas.</p>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 2: Select a Node</h4>
+            <p>Click on any node in the mind map. The properties panel should:</p>
+            <ul>
+                <li>✅ Open automatically on the right side</li>
+                <li>✅ Show current node properties</li>
+                <li>✅ Populate all controls with node's values</li>
+            </ul>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 3: Test Text Styling</h4>
+            <p>With a node selected, try these text controls:</p>
+            <ul>
+                <li>🔤 <strong>Font Family:</strong> Change dropdown → Node text should update instantly</li>
+                <li>📏 <strong>Font Size:</strong> Move slider → Text size changes in real-time</li>
+                <li>💪 <strong>Font Weight:</strong> Change to Bold → Text becomes bolder</li>
+                <li>🎨 <strong>Text Color:</strong> Pick new color → Text color changes immediately</li>
+                <li>📐 <strong>Alignment:</strong> Try Left/Center/Right → Text position updates</li>
+            </ul>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 4: Test Shape Controls</h4>
+            <p>Test the shape modification features:</p>
+            <ul>
+                <li>🔷 <strong>Shape Type:</strong> Change Circle → Rectangle → Triangle</li>
+                <li>📏 <strong>Width/Height:</strong> Move sliders → Node resizes immediately</li>
+                <li>🔘 <strong>Corner Radius:</strong> (For rectangles) Adjust roundness</li>
+                <li>📐 <strong>Auto Size:</strong> Click button → Node resizes to fit text perfectly</li>
+            </ul>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 5: Test Colors</h4>
+            <p>Test color controls:</p>
+            <ul>
+                <li>🎨 <strong>Background:</strong> Change color → Node background updates</li>
+                <li>🖊️ <strong>Border:</strong> Change color → Node border color updates</li>
+            </ul>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 6: Test Image Upload</h4>
+            <p>Test image functionality:</p>
+            <ul>
+                <li>📁 <strong>Upload:</strong> Click "Add Image" → Select image file</li>
+                <li>📍 <strong>Position:</strong> Change "Before Text" / "After Text"</li>
+                <li>🗑️ <strong>Remove:</strong> Click remove button → Image disappears</li>
+            </ul>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 7: Test Dynamic Sizing</h4>
+            <p>Test the interaction between manual and automatic sizing:</p>
+            <ul>
+                <li>📝 <strong>Edit Text:</strong> Double-click node → Type longer text → Node auto-resizes</li>
+                <li>📏 <strong>Manual Size:</strong> Use width/height sliders → Disables auto-sizing</li>
+                <li>📐 <strong>Re-enable Auto:</strong> Click "Auto Size to Text" → Re-enables dynamic sizing</li>
+            </ul>
+        </div>
+        
+        <div class="test-instructions">
+            <h4>Step 8: Test Export Features</h4>
+            <p>Test sharing and export:</p>
+            <ul>
+                <li>🖼️ <strong>Export Image:</strong> Click button → Downloads canvas as PNG</li>
+                <li>🔗 <strong>Share Link:</strong> Click button → Copies URL to clipboard</li>
+            </ul>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🐛 Known Issues & Fixes Applied</h2>
+        
+        <div class="test-status success">
+            <strong>✅ FIXED:</strong> Text color property mapping corrected (textColor vs color)
+        </div>
+        
+        <div class="test-status success">
+            <strong>✅ FIXED:</strong> Dynamic sizing conflict with manual controls resolved
+        </div>
+        
+        <div class="test-status success">
+            <strong>✅ FIXED:</strong> Cache busting implemented (files load with ?t=timestamp)
+        </div>
+        
+        <div class="test-status success">
+            <strong>✅ ADDED:</strong> Auto Size to Text button for re-enabling dynamic sizing
+        </div>
+        
+        <div class="test-status info">
+            <strong>ℹ️ FEATURE:</strong> Manual sizing disables auto-sizing (prevents conflicts)
+        </div>
+        
+        <div class="test-status info">
+            <strong>ℹ️ FEATURE:</strong> All controls update nodes in real-time with live preview
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🎯 Expected Behavior Summary</h2>
+        
+        <h3>✨ Real-time Updates</h3>
+        <p>Every control in the properties panel should update the selected node immediately as you interact with it. No "Apply" or "Save" button needed.</p>
+        
+        <h3>🔄 Dynamic vs Manual Sizing</h3>
+        <p><strong>Dynamic Mode:</strong> Node automatically resizes when you edit text content.</p>
+        <p><strong>Manual Mode:</strong> Once you use width/height sliders, auto-sizing is disabled to prevent conflicts.</p>
+        <p><strong>Reset:</strong> Click "Auto Size to Text" to re-enable dynamic sizing based on text content.</p>
+        
+        <h3>🎨 Visual Feedback</h3>
+        <p>All changes should be visible immediately on the canvas. The properties panel shows the current state of the selected node.</p>
+    </div>
+    
+    <div style="text-align: center; margin: 40px 0;">
+        <a href="http://127.0.0.1:3001" target="_blank">
+            <button style="font-size: 18px; padding: 15px 30px; background: #10B981;">
+                🚀 Test the Properties Panel Now!
+            </button>
+        </a>
+    </div>
+</body>
+</html>

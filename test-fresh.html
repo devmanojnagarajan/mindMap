@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fresh Test - Dynamic Node Sizing</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: white; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        svg { border: 1px solid #444; margin: 20px 0; background: #2a2a2a; }
+        .status { background: #333; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Fresh Test - Dynamic Node Sizing</h1>
+    <div class="status" id="status">Ready to test...</div>
+    
+    <button onclick="testBasicNode()">Create Basic Node</button>
+    <button onclick="testShortText()">Test: "Short"</button>
+    <button onclick="testMediumText()">Test: "Medium Text Here"</button>
+    <button onclick="testLongText()">Test: "This is a very long text that should make the node much bigger"</button>
+    <button onclick="clearCanvas()">Clear Canvas</button>
+    
+    <svg id="canvas" width="800" height="400">
+        <g id="nodeLayer"></g>
+    </svg>
+
+    <script>
+        let nodeCounter = 1;
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log(message);
+        }
+
+        function clearCanvas() {
+            document.getElementById('nodeLayer').innerHTML = '';
+            updateStatus('Canvas cleared');
+        }
+
+        // Copy the exact dynamic sizing logic from node-manager.js
+        function calculateTextDimensions(text, style) {
+            const avgCharWidth = style.fontSize * 0.6;
+            const lineHeight = style.fontSize * 1.2;
+            
+            const words = text.split(' ');
+            const maxWordsPerLine = Math.floor(120 / avgCharWidth);
+            
+            let width = 0;
+            let height = lineHeight;
+            
+            if (words.length <= maxWordsPerLine) {
+                width = text.length * avgCharWidth;
+            } else {
+                width = 120;
+                const lines = Math.ceil(words.length / maxWordsPerLine);
+                height = lines * lineHeight;
+            }
+            
+            return { width: Math.max(width, 40), height: Math.max(height, 20) };
+        }
+
+        function createDynamicNode(x, y, text) {
+            const style = {
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: 400,
+                textColor: '#F9FAFB',
+                backgroundColor: '#374151',
+                borderColor: '#4B5563'
+            };
+
+            // Calculate text dimensions
+            const textDimensions = calculateTextDimensions(text, style);
+            updateStatus(`Text "${text}": ${textDimensions.width.toFixed(1)}×${textDimensions.height.toFixed(1)}px`);
+
+            // Add padding and minimums
+            const padding = 20;
+            const minWidth = 60;
+            const minHeight = 40;
+            
+            let requiredWidth = Math.max(textDimensions.width + padding, minWidth);
+            let requiredHeight = Math.max(textDimensions.height + padding, minHeight);
+            
+            // For circles, use the larger dimension for both
+            const maxDimension = Math.max(requiredWidth, requiredHeight);
+            const radius = maxDimension / 2;
+
+            updateStatus(`Node size: width=${requiredWidth.toFixed(1)}px, height=${requiredHeight.toFixed(1)}px, radius=${radius.toFixed(1)}px`);
+
+            // Create node group
+            const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            nodeGroup.setAttribute('transform', `translate(${x}, ${y})`);
+            nodeGroup.setAttribute('data-node-id', nodeCounter++);
+
+            // Create circle
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('r', radius);
+            circle.setAttribute('fill', style.backgroundColor);
+            circle.setAttribute('stroke', style.borderColor);
+            circle.setAttribute('stroke-width', '2');
+
+            // Create text
+            const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textElement.setAttribute('text-anchor', 'middle');
+            textElement.setAttribute('dominant-baseline', 'central');
+            textElement.setAttribute('fill', style.textColor);
+            textElement.setAttribute('font-family', style.fontFamily);
+            textElement.setAttribute('font-size', style.fontSize);
+            textElement.setAttribute('font-weight', style.fontWeight);
+            textElement.textContent = text;
+
+            // Add to group
+            nodeGroup.appendChild(circle);
+            nodeGroup.appendChild(textElement);
+
+            // Add to canvas
+            document.getElementById('nodeLayer').appendChild(nodeGroup);
+
+            return nodeGroup;
+        }
+
+        function testBasicNode() {
+            clearCanvas();
+            createDynamicNode(100, 100, "Test Node");
+            updateStatus('✓ Basic node created with dynamic sizing');
+        }
+
+        function testShortText() {
+            clearCanvas();
+            createDynamicNode(150, 100, "Short");
+            updateStatus('✓ Short text node created');
+        }
+
+        function testMediumText() {
+            clearCanvas();
+            createDynamicNode(200, 100, "Medium Text Here");
+            updateStatus('✓ Medium text node created');
+        }
+
+        function testLongText() {
+            clearCanvas();
+            createDynamicNode(300, 100, "This is a very long text that should make the node much bigger");
+            updateStatus('✓ Long text node created');
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            updateStatus('🚀 Fresh test page loaded - dynamic sizing logic ready!');
+            setTimeout(testBasicNode, 1000);
+        });
+    </script>
+</body>
+</html>

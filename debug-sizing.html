@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Dynamic Sizing</title>
+</head>
+<body>
+    <h1>Dynamic Node Sizing Debug</h1>
+    <button onclick="testDynamicSizing()">Test Dynamic Sizing</button>
+    <div id="result"></div>
+    
+    <svg id="test-canvas" width="400" height="300" style="border: 1px solid #ccc;">
+        <g id="test-layer"></g>
+    </svg>
+
+    <script>
+        // Test the calculateTextDimensions function directly
+        function calculateTextDimensions(text, style, canvas) {
+            const tempText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            tempText.setAttribute('font-family', style.fontFamily);
+            tempText.setAttribute('font-size', style.fontSize);
+            tempText.setAttribute('font-weight', style.fontWeight);
+            tempText.textContent = text;
+            tempText.setAttribute('visibility', 'hidden');
+            
+            canvas.appendChild(tempText);
+            
+            const bbox = tempText.getBBox();
+            const width = bbox.width;
+            const height = bbox.height;
+            
+            canvas.removeChild(tempText);
+            
+            return { width, height };
+        }
+
+        function testDynamicSizing() {
+            const canvas = document.getElementById('test-canvas');
+            const result = document.getElementById('result');
+            
+            const style = {
+                fontFamily: 'Poppins',
+                fontSize: 14,
+                fontWeight: 400
+            };
+            
+            // Test with different text lengths
+            const tests = [
+                'Short',
+                'Medium text',
+                'This is a very long text that should make the node bigger'
+            ];
+            
+            let output = '<h3>Text Dimension Test Results:</h3>';
+            
+            tests.forEach((text, index) => {
+                try {
+                    const dimensions = calculateTextDimensions(text, style, canvas);
+                    output += `<p><strong>"${text}"</strong>: ${dimensions.width.toFixed(2)}px × ${dimensions.height.toFixed(2)}px</p>`;
+                } catch (error) {
+                    output += `<p><strong>"${text}"</strong>: ERROR - ${error.message}</p>`;
+                }
+            });
+            
+            result.innerHTML = output;
+        }
+    </script>
+</body>
+</html>

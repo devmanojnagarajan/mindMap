@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Sizing Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: white; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        svg { border: 1px solid #444; margin: 20px 0; background: #2a2a2a; }
+        .status { background: #333; padding: 10px; border-radius: 4px; margin: 10px 0; }
+        .controls { background: #2a2a2a; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        label { display: inline-block; width: 120px; margin-right: 10px; }
+        input[type="range"] { width: 200px; margin-right: 10px; }
+        input[type="text"] { width: 300px; padding: 5px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Dynamic Node Sizing Test</h1>
+    <div class="status" id="status">Ready to test dynamic sizing...</div>
+    
+    <div class="controls">
+        <h3>Test Controls</h3>
+        <div>
+            <label for="testText">Text Content:</label>
+            <input type="text" id="testText" value="Test Node" placeholder="Enter text content">
+            <button onclick="updateText()">Update Text</button>
+        </div>
+        <div style="margin: 10px 0;">
+            <label for="fontSize">Font Size:</label>
+            <input type="range" id="fontSize" min="8" max="32" value="14">
+            <span id="fontSizeValue">14px</span>
+            <button onclick="updateFontSize()">Update Size</button>
+        </div>
+        <div>
+            <button onclick="testShortText()">Short Text</button>
+            <button onclick="testMediumText()">Medium Text</button>
+            <button onclick="testLongText()">Long Text</button>
+            <button onclick="testVeryLongText()">Very Long Text</button>
+        </div>
+    </div>
+    
+    <svg id="canvas" width="800" height="400">
+        <g id="nodeLayer"></g>
+    </svg>
+
+    <script>
+        let currentNode = null;
+
+        // Copy the exact dynamic sizing logic from node-manager.js
+        function calculateTextDimensions(text, style) {
+            const avgCharWidth = style.fontSize * 0.6;
+            const lineHeight = style.fontSize * 1.2;
+            
+            const words = text.split(' ');
+            const maxWordsPerLine = Math.floor(120 / avgCharWidth);
+            
+            let width = 0;
+            let height = lineHeight;
+            
+            if (words.length <= maxWordsPerLine) {
+                width = text.length * avgCharWidth;
+            } else {
+                width = 120;
+                const lines = Math.ceil(words.length / maxWordsPerLine);
+                height = lines * lineHeight;
+            }
+            
+            return { width: Math.max(width, 40), height: Math.max(height, 20) };
+        }
+
+        function updateNodeShapeForText(node) {
+            const textDimensions = calculateTextDimensions(node.text, node.style);
+            
+            const padding = 20;
+            const minWidth = 60;
+            const minHeight = 40;
+            
+            let requiredWidth = Math.max(textDimensions.width + padding, minWidth);
+            let requiredHeight = Math.max(textDimensions.height + padding, minHeight);
+            
+            if (node.shape.type === 'circle') {
+                const maxDimension = Math.max(requiredWidth, requiredHeight);
+                requiredWidth = maxDimension;
+                requiredHeight = maxDimension;
+            }
+            
+            node.shape.width = requiredWidth;
+            node.shape.height = requiredHeight;
+            
+            return node;
+        }
+
+        function convertTextAlignToAnchor(textAlign) {
+            switch (textAlign) {
+                case 'left': return 'start';
+                case 'right': return 'end';
+                case 'center':
+                default: return 'middle';
+            }
+        }
+
+        function createNode(x, y, text) {
+            const node = {
+                id: 'test-node',
+                x: x,
+                y: y,
+                text: text,
+                style: {
+                    fontFamily: 'Poppins',
+                    fontSize: parseInt(document.getElementById('fontSize').value),
+                    fontWeight: 400,
+                    textColor: '#F9FAFB',
+                    textAlign: 'center',
+                    backgroundColor: '#374151',
+                    borderColor: '#4B5563'
+                },
+                shape: {
+                    type: 'circle',
+                    width: 80,
+                    height: 80
+                }
+            };
+
+            // Apply dynamic sizing
+            updateNodeShapeForText(node);
+            
+            updateStatus(`Created node: text="${text}", fontSize=${node.style.fontSize}px, size=${node.shape.width.toFixed(1)}×${node.shape.height.toFixed(1)}px`);
+            
+            return node;
+        }
+
+        function renderNode(node) {
+            const nodeLayer = document.getElementById('nodeLayer');
+            
+            // Remove existing node
+            const existing = nodeLayer.querySelector('[data-node-id="test-node"]');
+            if (existing) existing.remove();
+            
+            // Create node group
+            const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            nodeGroup.setAttribute('data-node-id', node.id);
+            nodeGroup.setAttribute('transform', `translate(${node.x}, ${node.y})`);
+            
+            // Create circle (using radius = width/2 for circles)
+            const radius = node.shape.width / 2;
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('r', radius);
+            circle.setAttribute('fill', node.style.backgroundColor);
+            circle.setAttribute('stroke', node.style.borderColor);
+            circle.setAttribute('stroke-width', '2');
+            
+            // Create text
+            const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            const textAnchor = convertTextAlignToAnchor(node.style.textAlign);
+            textElement.setAttribute('text-anchor', textAnchor);
+            textElement.setAttribute('dominant-baseline', 'central');
+            textElement.setAttribute('font-family', node.style.fontFamily);
+            textElement.setAttribute('font-size', node.style.fontSize);
+            textElement.setAttribute('font-weight', node.style.fontWeight);
+            textElement.setAttribute('fill', node.style.textColor);
+            textElement.textContent = node.text;
+            
+            nodeGroup.appendChild(circle);
+            nodeGroup.appendChild(textElement);
+            nodeLayer.appendChild(nodeGroup);
+            
+            currentNode = node;
+            return nodeGroup;
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log(message);
+        }
+
+        // Event handlers
+        function updateText() {
+            if (!currentNode) {
+                currentNode = createNode(200, 150, document.getElementById('testText').value);
+            } else {
+                currentNode.text = document.getElementById('testText').value;
+                updateNodeShapeForText(currentNode);
+            }
+            renderNode(currentNode);
+        }
+
+        function updateFontSize() {
+            const newSize = parseInt(document.getElementById('fontSize').value);
+            document.getElementById('fontSizeValue').textContent = newSize + 'px';
+            
+            if (!currentNode) {
+                currentNode = createNode(200, 150, document.getElementById('testText').value);
+            }
+            
+            currentNode.style.fontSize = newSize;
+            updateNodeShapeForText(currentNode);
+            renderNode(currentNode);
+        }
+
+        function testShortText() {
+            document.getElementById('testText').value = 'Short';
+            updateText();
+        }
+
+        function testMediumText() {
+            document.getElementById('testText').value = 'Medium Length Text';
+            updateText();
+        }
+
+        function testLongText() {
+            document.getElementById('testText').value = 'This is a much longer text that should make the node bigger';
+            updateText();
+        }
+
+        function testVeryLongText() {
+            document.getElementById('testText').value = 'This is an extremely long text that should definitely require multiple lines and make the node significantly larger to accommodate all of this content properly';
+            updateText();
+        }
+
+        // Font size slider event
+        document.getElementById('fontSize').addEventListener('input', updateFontSize);
+
+        // Auto-create initial node
+        window.addEventListener('load', () => {
+            updateText();
+            updateStatus('🚀 Dynamic sizing test loaded - try changing text or font size!');
+        });
+    </script>
+</body>
+</html>

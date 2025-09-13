@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Basic Functionality</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; margin: 10px; font-size: 16px; }
+        svg { border: 1px solid #ccc; margin-top: 20px; }
+        #log { 
+            background: #f0f0f0; 
+            padding: 10px; 
+            margin: 10px 0; 
+            max-height: 200px; 
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Basic Node Creation Test</h1>
+    
+    <button onclick="testNodeCreation()">Test Node Creation</button>
+    <button onclick="testDynamicSizing()">Test Dynamic Sizing</button>
+    <button onclick="clearLog()">Clear Log</button>
+    
+    <div id="log"></div>
+    
+    <svg id="testCanvas" width="400" height="300">
+        <g id="nodeLayer"></g>
+    </svg>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function testNodeCreation() {
+            log('Testing basic node creation...');
+            
+            const canvas = document.getElementById('testCanvas');
+            const nodeLayer = document.getElementById('nodeLayer');
+            
+            // Clear existing nodes
+            nodeLayer.innerHTML = '';
+            
+            try {
+                // Create a simple circle node
+                const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                nodeGroup.setAttribute('transform', 'translate(100, 100)');
+                
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('r', 40);
+                circle.setAttribute('fill', '#374151');
+                circle.setAttribute('stroke', '#4B5563');
+                circle.setAttribute('stroke-width', '2');
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('dominant-baseline', 'central');
+                text.setAttribute('fill', '#F9FAFB');
+                text.setAttribute('font-family', 'Arial');
+                text.setAttribute('font-size', '14');
+                text.textContent = 'Test Node';
+                
+                nodeGroup.appendChild(circle);
+                nodeGroup.appendChild(text);
+                nodeLayer.appendChild(nodeGroup);
+                
+                log('✓ Basic node created successfully');
+                
+            } catch (error) {
+                log('✗ Error creating node: ' + error.message);
+            }
+        }
+
+        function testDynamicSizing() {
+            log('Testing dynamic sizing...');
+            
+            const nodeLayer = document.getElementById('nodeLayer');
+            nodeLayer.innerHTML = '';
+            
+            try {
+                const texts = ['Short', 'Medium length text', 'This is a very long text that should make the node bigger'];
+                
+                texts.forEach((textContent, index) => {
+                    // Calculate text dimensions
+                    const style = { fontFamily: 'Arial', fontSize: 14, fontWeight: 400 };
+                    const dimensions = calculateTextDimensions(textContent, style);
+                    
+                    log(`Text "${textContent}": ${dimensions.width.toFixed(1)}×${dimensions.height.toFixed(1)}px`);
+                    
+                    // Create node with dynamic sizing
+                    const padding = 20;
+                    const nodeWidth = Math.max(dimensions.width + padding, 60);
+                    const nodeHeight = Math.max(dimensions.height + padding, 40);
+                    
+                    const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    nodeGroup.setAttribute('transform', `translate(${80 + index * 120}, ${150})`);
+                    
+                    // For circles, use the larger dimension
+                    const radius = Math.max(nodeWidth, nodeHeight) / 2;
+                    
+                    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    circle.setAttribute('r', radius);
+                    circle.setAttribute('fill', '#374151');
+                    circle.setAttribute('stroke', '#4B5563');
+                    circle.setAttribute('stroke-width', '2');
+                    
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('dominant-baseline', 'central');
+                    text.setAttribute('fill', '#F9FAFB');
+                    text.setAttribute('font-family', style.fontFamily);
+                    text.setAttribute('font-size', style.fontSize);
+                    text.textContent = textContent;
+                    
+                    nodeGroup.appendChild(circle);
+                    nodeGroup.appendChild(text);
+                    nodeLayer.appendChild(nodeGroup);
+                    
+                    log(`✓ Node ${index + 1}: radius=${radius.toFixed(1)}px`);
+                });
+                
+            } catch (error) {
+                log('✗ Error with dynamic sizing: ' + error.message);
+            }
+        }
+
+        function calculateTextDimensions(text, style) {
+            const avgCharWidth = style.fontSize * 0.6;
+            const lineHeight = style.fontSize * 1.2;
+            
+            const words = text.split(' ');
+            const maxWordsPerLine = Math.floor(120 / avgCharWidth);
+            
+            let width = 0;
+            let height = lineHeight;
+            
+            if (words.length <= maxWordsPerLine) {
+                width = text.length * avgCharWidth;
+            } else {
+                width = 120;
+                const lines = Math.ceil(words.length / maxWordsPerLine);
+                height = lines * lineHeight;
+            }
+            
+            return { width: Math.max(width, 40), height: Math.max(height, 20) };
+        }
+
+        // Test on load
+        log('Test page loaded successfully');
+    </script>
+</body>
+</html>

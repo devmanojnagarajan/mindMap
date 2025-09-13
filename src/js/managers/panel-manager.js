@@ -63,6 +63,7 @@ class PanelManager {
             cornerRadiusValue: document.getElementById('corner-radius-value'),
             cornerRadiusControl: document.getElementById('corner-radius-control'),
             sizeControls: document.getElementById('size-controls'),
+            autoSizeBtn: document.getElementById('auto-size-btn'),
             
             // Color controls
             nodeBgColor: document.getElementById('node-bg-color'),
@@ -139,7 +140,7 @@ class PanelManager {
         });
         
         this.elements.textColor.addEventListener('input', (e) => {
-            this.updateNodeStyle('color', e.target.value);
+            this.updateNodeStyle('textColor', e.target.value);
         });
         
         this.elements.textAlign.addEventListener('change', (e) => {
@@ -160,18 +161,27 @@ class PanelManager {
             const width = e.target.value;
             this.elements.nodeWidthValue.textContent = width + 'px';
             this.updateNodeShape('width', parseInt(width));
+            // Mark as manually resized to prevent dynamic sizing override
+            this.updateNodeShape('manuallyResized', true);
         });
         
         this.elements.nodeHeight.addEventListener('input', (e) => {
             const height = e.target.value;
             this.elements.nodeHeightValue.textContent = height + 'px';
             this.updateNodeShape('height', parseInt(height));
+            // Mark as manually resized to prevent dynamic sizing override
+            this.updateNodeShape('manuallyResized', true);
         });
         
         this.elements.cornerRadius.addEventListener('input', (e) => {
             const radius = e.target.value;
             this.elements.cornerRadiusValue.textContent = radius + 'px';
             this.updateNodeShape('cornerRadius', parseInt(radius));
+        });
+        
+        // Auto-size button
+        this.elements.autoSizeBtn.addEventListener('click', () => {
+            this.enableAutoSizing();
         });
     }
     
@@ -295,7 +305,7 @@ class PanelManager {
                 fontFamily: 'Poppins',
                 fontSize: 14,
                 fontWeight: '400',
-                color: '#F9FAFB',
+                textColor: '#F9FAFB',
                 textAlign: 'center',
                 backgroundColor: '#374151',
                 borderColor: '#4B5563'
@@ -324,7 +334,7 @@ class PanelManager {
         this.elements.fontSize.value = node.style.fontSize || 14;
         this.elements.fontSizeValue.textContent = (node.style.fontSize || 14) + 'px';
         this.elements.fontWeight.value = node.style.fontWeight || '400';
-        this.elements.textColor.value = node.style.color || '#F9FAFB';
+        this.elements.textColor.value = node.style.textColor || '#F9FAFB';
         this.elements.textAlign.value = node.style.textAlign || 'center';
     }
     
@@ -409,6 +419,33 @@ class PanelManager {
         this.renderNode();
     }
     
+    /**
+     * Enable automatic sizing for the current node
+     */
+    enableAutoSizing() {
+        if (!this.currentEditingNode) return;
+        
+        // Remove the manually resized flag to re-enable dynamic sizing
+        this.currentEditingNode.shape.manuallyResized = false;
+        
+        // Force recalculate and update the size
+        if (this.mindMap.nodeManager && this.mindMap.nodeManager.updateNodeShapeForText) {
+            this.mindMap.nodeManager.updateNodeShapeForText(this.currentEditingNode);
+        }
+        
+        // Update the panel controls to reflect new size
+        this.elements.nodeWidth.value = this.currentEditingNode.shape.width;
+        this.elements.nodeWidthValue.textContent = this.currentEditingNode.shape.width + 'px';
+        this.elements.nodeHeight.value = this.currentEditingNode.shape.height;
+        this.elements.nodeHeightValue.textContent = this.currentEditingNode.shape.height + 'px';
+        
+        // Re-render the node
+        this.renderNode();
+        
+        // Show feedback
+        this.showNotification('Auto-sizing enabled! Node will resize with text changes.', 'success');
+    }
+
     /**
      * Handle image upload
      */

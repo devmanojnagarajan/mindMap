@@ -8,7 +8,13 @@
       "Bash(start:*)",
       "Bash(git restore:*)",
       "Bash(node:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(tree:*)",
+      "Bash(curl:*)",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": []

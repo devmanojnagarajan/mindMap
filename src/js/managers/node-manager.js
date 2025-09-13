@@ -208,6 +208,9 @@ class NodeManager {
             return;
         }
         
+        // Update node shape dimensions based on text content
+        this.updateNodeShapeForText(node);
+        
         // Remove existing node element if updating
         if (isUpdate) {
             const existingElement = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
@@ -286,7 +289,10 @@ class NodeManager {
      */
     createNodeText(node) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('text-anchor', 'middle');
+        
+        // Convert CSS text-align to SVG text-anchor
+        const textAnchor = this.convertTextAlignToAnchor(node.style.textAlign);
+        text.setAttribute('text-anchor', textAnchor);
         text.setAttribute('dominant-baseline', 'central');
         text.setAttribute('fill', node.style.textColor);
         text.setAttribute('font-family', node.style.fontFamily);
@@ -295,6 +301,21 @@ class NodeManager {
         text.textContent = node.text;
         
         return text;
+    }
+
+    /**
+     * Convert CSS text-align values to SVG text-anchor values
+     */
+    convertTextAlignToAnchor(textAlign) {
+        switch (textAlign) {
+            case 'left':
+                return 'start';
+            case 'right':
+                return 'end';
+            case 'center':
+            default:
+                return 'middle';
+        }
     }
 
     /**
@@ -311,6 +332,69 @@ class NodeManager {
         image.setAttribute('y', node.imagePosition === 'before' ? '-30' : '10');
         
         return image;
+    }
+
+    /**
+     * Calculate the required dimensions for text content
+     */
+    calculateTextDimensions(text, style) {
+        // Use a more reliable approach to measure text
+        // Approximate text width based on character count and font size
+        const avgCharWidth = style.fontSize * 0.6; // Approximate character width ratio
+        const lineHeight = style.fontSize * 1.2; // Standard line height
+        
+        // Split text into words to handle potential line wrapping
+        const words = text.split(' ');
+        const maxWordsPerLine = Math.floor(120 / avgCharWidth); // Assume max 120px line width
+        
+        let width = 0;
+        let height = lineHeight;
+        
+        if (words.length <= maxWordsPerLine) {
+            // Single line
+            width = text.length * avgCharWidth;
+        } else {
+            // Multiple lines
+            width = 120; // Max line width
+            const lines = Math.ceil(words.length / maxWordsPerLine);
+            height = lines * lineHeight;
+        }
+        
+        return { width: Math.max(width, 40), height: Math.max(height, 20) };
+    }
+
+    /**
+     * Update node shape dimensions based on text content
+     */
+    updateNodeShapeForText(node) {
+        // Skip dynamic sizing if node has been manually sized
+        if (node.shape && node.shape.manuallyResized) {
+            return node;
+        }
+        
+        const textDimensions = this.calculateTextDimensions(node.text, node.style);
+        
+        // Add padding around text
+        const padding = 20;
+        const minWidth = 60;
+        const minHeight = 40;
+        
+        // Calculate required dimensions
+        let requiredWidth = Math.max(textDimensions.width + padding, minWidth);
+        let requiredHeight = Math.max(textDimensions.height + padding, minHeight);
+        
+        // For circles, use the larger dimension for both width and height
+        if (node.shape.type === 'circle') {
+            const maxDimension = Math.max(requiredWidth, requiredHeight);
+            requiredWidth = maxDimension;
+            requiredHeight = maxDimension;
+        }
+        
+        // Update node shape dimensions
+        node.shape.width = requiredWidth;
+        node.shape.height = requiredHeight;
+        
+        return node;
     }
 
     /**
@@ -425,6 +509,9 @@ class NodeManager {
             const existing = this.nodeLayer.querySelector(`[data-node-id="${node.id}"]`);
             if (existing) existing.remove();
         }
+        
+        // Update node shape dimensions based on text content
+        this.updateNodeShapeForText(node);
         
         // Update minimap bounds
         this.updateMinimapBounds(node.x, node.y);
@@ -605,7 +692,10 @@ class NodeManager {
     createTextElement(node) {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.setAttribute('class', 'node-text');
-        text.setAttribute('text-anchor', 'middle');
+        
+        // Convert CSS text-align to SVG text-anchor
+        const textAnchor = this.convertTextAlignToAnchor(node.style.textAlign);
+        text.setAttribute('text-anchor', textAnchor);
         text.setAttribute('dominant-baseline', 'central');
         text.setAttribute('font-family', node.style.fontFamily);
         text.setAttribute('font-size', node.style.fontSize);
